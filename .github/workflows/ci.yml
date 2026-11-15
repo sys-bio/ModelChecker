@@ -22,19 +22,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust with clippy and the WebAssembly target
+      - name: Install Rust with rustfmt, clippy and the WebAssembly target
         uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: rustfmt, clippy
           targets: wasm32-unknown-unknown
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Tests
-        run: cargo test -p mc-core --all-features
+      - name: Format
+        run: cargo fmt --all --check
 
-      - name: Clippy, checker crates
-        run: cargo clippy -p mc-core -p mc-cli -p mc-web --all-targets
+      - name: Tests
+        run: cargo test --workspace --all-features
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets
 
       - name: The checker builds for the browser
         run: cargo build -p mc-web --target wasm32-unknown-unknown --release
