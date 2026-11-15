@@ -38,6 +38,7 @@ impl Ctx<'_, '_> {
             message: message.into(),
             witness,
             reaction: None,
+            line: None,
         });
     }
 }

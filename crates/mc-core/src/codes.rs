@@ -50,12 +50,27 @@ pub const SO_NOT_MASS_ACTION: &str = "SO006";
 pub const SO_MASS_ACTION_MISMATCH: &str = "SO007";
 pub const SO_SHAPE_MISMATCH: &str = "SO008";
 
+pub const AN_ERROR: &str = "AN001";
+pub const AN_WARNING: &str = "AN002";
+
 pub const SB_READ: &str = "SB001";
 pub const SB_READ_WARNING: &str = "SB002";
 pub const SB_STRUCTURE: &str = "SB003";
 pub const SB_NO_MODEL: &str = "SB004";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: AN_ERROR,
+        title: "Antimony error",
+        help: "The edited Antimony text cannot be read. Fix it and re-check; the other \
+               checks run once it reads.",
+    },
+    Code {
+        code: AN_WARNING,
+        title: "Antimony warning",
+        help: "Something in the edited Antimony text is suspicious, such as a name that is \
+               used but never declared, which is often a typo.",
+    },
     Code {
         code: RL_MASS_ACTION_ORDER,
         title: "Mass-action order differs from stoichiometry",

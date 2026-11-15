@@ -617,6 +617,7 @@ fn merge_groups(ctx: &mut Ctx, grouped: Vec<(usize, Group, String)>) {
             message: format!("{n} rate laws {}: {list}. {}", g.summary, g.hint),
             witness: None,
             reaction: None,
+            line: None,
         });
     }
     remove.sort_unstable();

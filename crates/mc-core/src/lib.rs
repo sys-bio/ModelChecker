@@ -28,7 +28,10 @@ pub mod codes;
 pub mod eval;
 pub mod finding;
 pub mod fmt;
+#[cfg(feature = "antimony")]
+pub mod from_antimony;
 pub mod json;
+pub mod merge;
 pub mod moiety;
 pub mod sample;
 pub mod sbo;
@@ -80,25 +83,41 @@ pub fn check(xml: &str) -> Report {
                     message: format!("Line {}, column {}: {}", d.line, d.column, d.message),
                     witness: None,
                     reaction: None,
+                    line: None,
                 });
             }
             return report;
         }
     };
-    let doc = read.document;
-    report.level = Some(doc.level);
-    report.version = Some(doc.version);
+    let mut warnings = Vec::new();
     for d in read.warnings {
-        report.findings.push(Finding {
+        warnings.push(Finding {
             code: codes::SB_READ_WARNING,
             severity: Severity::Info,
             element: Element::Model,
             message: format!("Line {}, column {}: {}", d.line, d.column, d.message),
             witness: None,
             reaction: None,
+            line: None,
         });
     }
-    for issue in sbml_io::validate(&doc) {
+    let mut report = check_document(&read.document);
+    report.findings.extend(warnings);
+    sort(&mut report.findings);
+    report
+}
+
+/// Runs every check on an SBML document already read (or built).
+pub fn check_document(doc: &sbml_io::Document) -> Report {
+    let mut report = Report {
+        level: Some(doc.level),
+        version: Some(doc.version),
+        model_id: None,
+        model_name: None,
+        findings: Vec::new(),
+        antimony: None,
+    };
+    for issue in sbml_io::validate(doc) {
         report.findings.push(Finding {
             code: codes::SB_STRUCTURE,
             severity: Severity::Error,
@@ -106,6 +125,7 @@ pub fn check(xml: &str) -> Report {
             message: issue.message,
             witness: None,
             reaction: None,
+            line: None,
         });
     }
     let Some(model) = &doc.model else {
@@ -116,6 +136,7 @@ pub fn check(xml: &str) -> Report {
             message: "The document contains no model.".into(),
             witness: None,
             reaction: None,
+            line: None,
         });
         return report;
     };
@@ -134,9 +155,13 @@ pub fn check(xml: &str) -> Report {
             f.reaction = Some(fmt::reaction(r, model));
         }
     }
-    // Most severe first; within a severity, by code, then element.
+    sort(&mut report.findings);
     report
-        .findings
-        .sort_by(|a, b| (a.severity, a.code, &a.element).cmp(&(b.severity, b.code, &b.element)));
-    report
+}
+
+/// Most severe first; within a severity, by code, then element, then line.
+pub fn sort(findings: &mut [Finding]) {
+    findings.sort_by(|a, b| {
+        (a.severity, a.code, &a.element, a.line).cmp(&(b.severity, b.code, &b.element, b.line))
+    });
 }

@@ -49,6 +49,8 @@ your computer. There is also a command-line tool for checking whole folders.
 | SO006 | warning  | Kinetic law marked mass action, but not of mass-action form |
 | SO007 | warning  | Mass-action term whose orders or reactant/product counts differ from the rate law or the reaction |
 | SO008 | warning  | Enzymatic or Hill term that does not fit: no saturation, no species power, no modifier, wrong reactant count |
+| AN001 | error    | The edited Antimony text cannot be read (web page only) |
+| AN002 | warning  | Antimony warning on the edited text, e.g. a name never declared (web page only) |
 | SY001 | error    | Undefined symbol |
 | SY002-SY004 | info | Unused parameter, local parameter, function |
 | SY005 | info     | Local parameter shadows a global |
@@ -104,7 +106,22 @@ your computer. There is also a command-line tool for checking whole folders.
   e.g. `J4: S4 -> ; k4*(S4 + E)`, with `$` marking boundary species. The
   page also shows the whole model as Antimony beside the findings. Click a
   finding to see it in the model, or click a marked line to see its
-  findings. Ids that are Antimony keywords, such as a compartment called
+  findings. The panel is editable. Change the model and press **Re-check**
+  (or Ctrl+Enter) to check the edited version, with findings on your lines.
+  Antimony errors and warnings, such as a name used but never declared, are
+  reported too (AN001, AN002). **Revert to original** returns to the loaded
+  file, and **Download SBML** saves the edited model.
+- **Editing never loses anything.** The loaded SBML stays the master copy.
+  An edit of the text is merged into it by comparing the edited text with
+  the text as first written: only what you changed is changed. Units, SBO
+  terms, annotations, notes, names and anything else the text does not show
+  are kept, as are untouched elements, byte for byte. Local parameters are
+  written as `J1_k1` and turned back into local parameters, and numbers are
+  written exactly. Tested on all BioModels
+  (`cargo run --release -p mc-core --features antimony --example edit_roundtrip -- FOLDER`):
+  an unedited text gives back the original exactly (1075 of 1075), and
+  changing one value or one rate law changes only that (928 of 928, 953 of
+  953). Ids that are Antimony keywords, such as a compartment called
   `compartment`, are written with a trailing `_`. Every BioModels model
   converts to Antimony that the antimony crate parses
   (`cargo run --release -p mc-core --example ant_roundtrip -- FOLDER`).

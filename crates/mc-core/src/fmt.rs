@@ -18,12 +18,9 @@ const P_MUL: u8 = 5;
 const P_NEG: u8 = 6;
 const P_POW: u8 = 7;
 
+/// Numbers are written exactly: Antimony text is read back into models.
 fn num(x: f64) -> String {
-    if x.fract() == 0.0 && x.abs() < 1e15 {
-        format!("{}", x as i64)
-    } else {
-        format!("{x}")
-    }
+    crate::antimony_out::exact(x)
 }
 
 fn write(m: &Math, outer: u8, s: &mut String) {

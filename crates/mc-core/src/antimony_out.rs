@@ -1,17 +1,20 @@
-//! A model written out as Antimony, for reading alongside the findings.
+//! A model written out as Antimony, to read and edit beside the findings.
 //!
-//! The text aims to be close to what Tellurium's `getAntimony` gives, and
-//! readable first: rate laws keep their local parameters' names (Antimony
-//! has no local parameters, so their values are listed in a comment after
-//! the reaction). Units, constraints, and annotations are left out. Each
-//! element's line is recorded, so a finding can point into the text.
+//! The text is close to what Tellurium's `getAntimony` gives. Two things
+//! SBML has and Antimony lacks are handled by a reversible [`prepare`] step:
+//! a reaction's local parameter `k1` becomes a global `J1_k1` (as Tellurium
+//! writes it), and an id that is an Antimony keyword (a compartment called
+//! `compartment`) gets a trailing `_`. [`unprepare`] undoes both, so an
+//! edited text can be merged back into the original model without loss
+//! (see [`crate::merge`]). Units, SBO terms and annotations are not written;
+//! the merge keeps them from the original. Numbers are written exactly.
+//! Each element's line is recorded, so a finding can point into the text.
 
 use std::collections::{HashMap, HashSet};
 
 use sbml_io::{Math, Model, Rule};
 
 use crate::fmt::infix;
-use crate::sample::fmt_num;
 
 /// Antimony text, and where each element is in it.
 #[derive(Debug, Clone, PartialEq)]
@@ -62,9 +65,144 @@ const RESERVED: &[&str] = &[
     "species", "substanceOnly", "t0", "time", "unit", "var",
 ];
 
-/// A copy of the model with ids that are Antimony keywords renamed (with a
-/// trailing `_`), and the map back from new ids to the original ones.
-fn renamed(model: &Model) -> (Model, HashMap<String, String>) {
+/// A number written so that it reads back as exactly the same value.
+pub fn exact(x: f64) -> String {
+    if x == 0.0 {
+        "0".into()
+    } else if x.fract() == 0.0 && x.abs() < 1e15 {
+        format!("{}", x as i64)
+    } else if (1e-4..1e15).contains(&x.abs()) {
+        // Rust prints the shortest text that reads back as the same f64.
+        format!("{x}")
+    } else {
+        format!("{x:e}")
+    }
+}
+
+/// A local parameter written as a global: `local` in reaction `reaction`
+/// is the global `global` in the text.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Local {
+    pub reaction: String,
+    pub local: String,
+    pub global: String,
+}
+
+/// How a model was prepared for Antimony, so it can be undone.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Mapping {
+    /// Keyword renames: new id to original id.
+    pub back: HashMap<String, String>,
+    pub locals: Vec<Local>,
+}
+
+impl Mapping {
+    /// The element a written (kind, id) stands for in the original model.
+    pub fn key(&self, kind: &'static str, id: &str) -> (&'static str, String) {
+        let id = self.back.get(id).map(String::as_str).unwrap_or(id);
+        if kind == "parameter"
+            && let Some(l) = self.locals.iter().find(|l| l.global == id)
+        {
+            return ("local parameter", format!("{}.{}", l.reaction, l.local));
+        }
+        (kind, id.to_string())
+    }
+}
+
+/// The model ready to write as Antimony: local parameters made global and
+/// keyword ids renamed. The mapping undoes both ([`unprepare`]).
+pub fn prepare(model: &Model) -> (Model, Mapping) {
+    let (mut m, locals) = globalize(model);
+    let map = keyword_map(&m);
+    rename_model(&mut m, &map);
+    let back = map.into_iter().map(|(k, v)| (v, k)).collect();
+    (m, Mapping { back, locals })
+}
+
+/// Undoes [`prepare`] on a model read back from (possibly edited) Antimony.
+pub fn unprepare(m: &mut Model, map: &Mapping) {
+    rename_model(m, &map.back);
+    localize(m, &map.locals);
+}
+
+/// Every id in the model, for avoiding clashes.
+fn all_ids(model: &Model) -> HashSet<String> {
+    let mut ids: HashSet<String> = HashSet::new();
+    ids.extend(model.function_definitions.iter().map(|f| f.id.clone()));
+    ids.extend(model.compartments.iter().map(|c| c.id.clone()));
+    ids.extend(model.species.iter().map(|s| s.id.clone()));
+    ids.extend(model.parameters.iter().map(|p| p.id.clone()));
+    ids.extend(model.reactions.iter().map(|r| r.id.clone()));
+    ids.extend(model.events.iter().filter_map(|e| e.id.clone()));
+    for r in &model.reactions {
+        ids.extend(r.kinetic_law.iter().flat_map(|k| &k.parameters).map(|p| p.id.clone()));
+    }
+    ids
+}
+
+/// Local parameters as globals named `reaction_local`.
+fn globalize(model: &Model) -> (Model, Vec<Local>) {
+    let mut m = model.clone();
+    let mut used = all_ids(model);
+    let mut locals = Vec::new();
+    for r in &mut m.reactions {
+        let Some(k) = &mut r.kinetic_law else { continue };
+        let mut map: HashMap<String, String> = HashMap::new();
+        for p in std::mem::take(&mut k.parameters) {
+            let mut global = format!("{}_{}", r.id, p.id);
+            while used.contains(&global) {
+                global.push('_');
+            }
+            used.insert(global.clone());
+            m.parameters.push(sbml_io::Parameter {
+                id: global.clone(),
+                name: p.name.clone(),
+                value: p.value,
+                units: p.units.clone(),
+                constant: Some(true),
+                meta: Default::default(),
+            });
+            map.insert(p.id.clone(), global.clone());
+            locals.push(Local {
+                reaction: r.id.clone(),
+                local: p.id,
+                global,
+            });
+        }
+        if let Some(math) = &mut k.math {
+            *math = rename_math(math, &map);
+        }
+    }
+    (m, locals)
+}
+
+/// Globals made from local parameters turned back into local parameters.
+fn localize(m: &mut Model, locals: &[Local]) {
+    for l in locals {
+        let Some(i) = m.parameters.iter().position(|p| p.id == l.global) else {
+            continue;
+        };
+        let p = m.parameters.remove(i);
+        let Some(r) = m.reactions.iter_mut().find(|r| r.id == l.reaction) else {
+            continue;
+        };
+        let k = r.kinetic_law.get_or_insert_with(Default::default);
+        if let Some(math) = &mut k.math {
+            let map = HashMap::from([(l.global.clone(), l.local.clone())]);
+            *math = rename_math(math, &map);
+        }
+        k.parameters.push(sbml_io::LocalParameter {
+            id: l.local.clone(),
+            name: p.name,
+            value: p.value,
+            units: p.units,
+            meta: Default::default(),
+        });
+    }
+}
+
+/// Renames for ids that are Antimony keywords: original to new.
+fn keyword_map(model: &Model) -> HashMap<String, String> {
     let mut used: HashSet<String> = HashSet::new();
     let mut ids: Vec<&str> = Vec::new();
     ids.extend(model.function_definitions.iter().map(|f| f.id.as_str()));
@@ -94,9 +232,13 @@ fn renamed(model: &Model) -> (Model, HashMap<String, String>) {
             map.insert(id.to_string(), new);
         }
     }
-    let back = map.iter().map(|(k, v)| (v.clone(), k.clone())).collect();
+    map
+}
+
+/// Renames ids everywhere in the model, as declared and as used.
+fn rename_model(m: &mut Model, map: &HashMap<String, String>) {
     if map.is_empty() {
-        return (model.clone(), back);
+        return;
     }
     let r = |s: &mut String| {
         if let Some(n) = map.get(s.as_str()) {
@@ -105,10 +247,9 @@ fn renamed(model: &Model) -> (Model, HashMap<String, String>) {
     };
     let rm = |m: &mut Option<Math>| {
         if let Some(x) = m {
-            *x = rename_math(x, &map);
+            *x = rename_math(x, map);
         }
     };
-    let mut m = model.clone();
     for f in &mut m.function_definitions {
         r(&mut f.id);
         rm(&mut f.math);
@@ -166,7 +307,6 @@ fn renamed(model: &Model) -> (Model, HashMap<String, String>) {
             rm(&mut a.math);
         }
     }
-    (m, back)
 }
 
 fn rename_math(m: &Math, map: &HashMap<String, String>) -> Math {
@@ -201,23 +341,22 @@ fn rename_math(m: &Math, map: &HashMap<String, String>) -> Math {
     }
 }
 
+/// The model as Antimony, with each element's line keyed by the model's own
+/// kinds and ids.
 pub fn to_antimony(model: &Model) -> AntimonyText {
-    let (model, back) = renamed(model);
-    let mut text = write(&model);
-    // Line keys use the model's own ids.
-    for (_, id, _) in &mut text.lines {
-        if let Some(orig) = back.get(id.as_str()) {
-            *id = orig.clone();
-        } else if let Some((r, p)) = id.split_once('.') {
-            let r = back.get(r).map(String::as_str).unwrap_or(r);
-            let p = back.get(p).map(String::as_str).unwrap_or(p);
-            *id = format!("{r}.{p}");
-        }
+    let (prepared, map) = prepare(model);
+    let mut text = write(&prepared);
+    for entry in &mut text.lines {
+        let (kind, id) = map.key(entry.0, &entry.1);
+        entry.0 = kind;
+        entry.1 = id;
     }
     text
 }
 
-fn write(model: &Model) -> AntimonyText {
+/// A prepared model ([`prepare`]) as Antimony; line keys are the prepared
+/// model's ids.
+pub fn write(model: &Model) -> AntimonyText {
     let mut o = Out {
         text: String::new(),
         line: 0,
@@ -227,7 +366,9 @@ fn write(model: &Model) -> AntimonyText {
     if let Some(name) = &model.name {
         o.push(&format!("// {name}"));
     }
-    o.push("// Written from SBML by Model Checker; units and annotations are left out.");
+    o.push("// Written from SBML by Model Checker. Units, SBO terms and annotations are");
+    o.push("// not shown, but are kept when you edit. Local parameters are written as");
+    o.push("// reaction_name (J1_k1).");
     o.blank();
 
     // Function definitions come before the model in Antimony.
@@ -291,7 +432,7 @@ fn write(model: &Model) -> AntimonyText {
                             sr.species.clone()
                         };
                         match sr.stoichiometry {
-                            Some(n) if n != 1.0 => format!("{} {name}", fmt_num(n)),
+                            Some(n) if n != 1.0 => format!("{} {name}", exact(n)),
                             _ => name,
                         }
                     })
@@ -318,24 +459,6 @@ fn write(model: &Model) -> AntimonyText {
             s.push_str(&rhs);
             s.push_str(&format!("; {law};"));
             o.push_for("reaction", &r.id, &s);
-            let locals: Vec<String> = r
-                .kinetic_law
-                .iter()
-                .flat_map(|k| &k.parameters)
-                .map(|p| {
-                    let v = p.value.map(fmt_num).unwrap_or_else(|| "?".into());
-                    format!("{} = {v}", p.id)
-                })
-                .collect();
-            if !locals.is_empty() {
-                let line = format!("    // local to {}: {}", r.id, locals.join(", "));
-                // Each local parameter points at this line.
-                for p in r.kinetic_law.iter().flat_map(|k| &k.parameters) {
-                    o.lines
-                        .push(("local parameter", format!("{}.{}", r.id, p.id), o.line + 1));
-                }
-                o.push(&line);
-            }
         }
     }
 
@@ -424,9 +547,9 @@ fn write(model: &Model) -> AntimonyText {
         .iter()
         .filter_map(|s| {
             let v = match (s.initial_concentration, s.initial_amount) {
-                (Some(c), _) => fmt_num(c),
-                (None, Some(a)) if s.has_only_substance_units == Some(true) => fmt_num(a),
-                (None, Some(a)) => format!("{}/{}", fmt_num(a), s.compartment),
+                (Some(c), _) => exact(c),
+                (None, Some(a)) if s.has_only_substance_units == Some(true) => exact(a),
+                (None, Some(a)) => format!("{}/{}", exact(a), s.compartment),
                 (None, None) => return None,
             };
             Some(format!("  {} = {v};", s.id))
@@ -450,7 +573,7 @@ fn write(model: &Model) -> AntimonyText {
         o.blank();
         o.push("  // Compartment initializations:");
         for c in sized {
-            o.push_for("compartment", &c.id, &format!("  {} = {};", c.id, fmt_num(c.size.unwrap())));
+            o.push_for("compartment", &c.id, &format!("  {} = {};", c.id, exact(c.size.unwrap())));
         }
     }
     if !model.parameters.is_empty() {
@@ -458,7 +581,7 @@ fn write(model: &Model) -> AntimonyText {
         o.push("  // Parameters:");
         for p in &model.parameters {
             let line = match p.value {
-                Some(v) => format!("  {} = {};", p.id, fmt_num(v)),
+                Some(v) => format!("  {} = {};", p.id, exact(v)),
                 None => format!("  {};", p.id),
             };
             o.push_for("parameter", &p.id, &line);

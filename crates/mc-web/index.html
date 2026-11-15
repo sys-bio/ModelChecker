@@ -69,7 +69,24 @@ main.wide { max-width: 1560px; }
 .ant-head .spacer { flex: 1; }
 .ant-head button { padding: 3px 10px; font-size: 13px; font-weight: normal; }
 .ant-note { font-weight: normal; color: var(--muted); font-size: 13px; }
-#ant { overflow: auto; flex: 1; padding: 6px 0; font-size: 12.5px; line-height: 1.55; }
+/* The editor: a highlighted layer (line numbers, markers, colours) with a
+   transparent text area exactly on top of its text, in one scroller. */
+.ant-scroll { overflow: auto; flex: 1; }
+.ant-layers { position: relative; min-width: 100%; width: max-content; }
+#ant, #ant-edit {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 12.5px; line-height: 1.55; tab-size: 4; letter-spacing: 0;
+}
+#ant { padding: 6px 0 24px; }
+#ant-edit {
+  position: absolute; top: 0; bottom: 0; left: 4.2em; right: 0;
+  margin: 0; border: 0; outline: none; resize: none; overflow: hidden;
+  padding: 6px 12px 24px 0; white-space: pre;
+  background: transparent; color: transparent; caret-color: var(--text);
+}
+#ant-edit::selection { background: rgba(47, 111, 222, 0.28); color: transparent; }
+.ant-head button.primary:disabled { background: var(--panel); color: var(--muted); border-color: var(--border); }
+#list.stale { opacity: 0.45; }
 .cl { display: flex; white-space: pre; padding-right: 12px; }
 .cl .ln {
   flex: 0 0 auto; width: 4.2em; padding-right: 10px; text-align: right;
@@ -272,12 +289,21 @@ footer a { color: var(--accent); }
       <div id="list"></div>
       <aside class="ant-panel" aria-label="The model in Antimony">
         <div class="ant-head">
-          Antimony <span class="ant-note">read only</span>
+          Antimony <span class="ant-note">editable</span>
           <span class="spacer"></span>
+          <button id="ant-recheck" class="primary" disabled title="Check the edited model (Ctrl+Enter)">Re-check</button>
+          <button id="ant-revert" hidden>Revert to original</button>
           <button id="ant-copy">Copy</button>
           <button id="ant-save">Download .ant</button>
+          <button id="ant-sbml" hidden>Download SBML</button>
         </div>
-        <div id="ant" class="mono"></div>
+        <div class="ant-scroll" id="ant-scroll">
+          <div class="ant-layers">
+            <div id="ant" aria-hidden="true"></div>
+            <textarea id="ant-edit" spellcheck="false" wrap="off" autocomplete="off"
+                      autocapitalize="off" aria-label="The model in Antimony; edit and press Re-check"></textarea>
+          </div>
+        </div>
       </aside>
     </div>
   </section>
@@ -322,6 +348,14 @@ footer a { color: var(--accent); }
   let api = null;
   let report = null;
   let fileName = "";
+  // The report for the file as loaded, to revert to, and the file itself:
+  // the master copy that edits of the Antimony text are merged into.
+  let original = null;
+  let originalXml = "";
+  // Whether `report` is for edited Antimony text, and whether the text has
+  // changed since it was last checked.
+  let edited = false;
+  let dirty = false;
 
   const $ = (id) => document.getElementById(id);
   const status = (text, bad) => {
@@ -361,17 +395,24 @@ footer a { color: var(--accent); }
       }
       const ms = Math.round(performance.now() - t0);
       status("Checked " + name + " in " + ms + " ms.");
+      original = report;
+      originalXml = text;
+      edited = false;
+      dirty = false;
       show();
     }, 10);
   }
 
   function show() {
     $("results").style.display = "block";
-    const name = report.modelName || report.modelId || fileName;
+    const base = original || report;
+    const name = base.modelName || base.modelId || fileName;
     $("model-name").textContent = name;
-    $("model-meta").textContent = report.level
-      ? `SBML Level ${report.level} Version ${report.version}` + (report.modelId && report.modelId !== name ? ` - ${report.modelId}` : "")
-      : "";
+    $("model-meta").textContent = edited
+      ? "edited in the Antimony panel"
+      : base.level
+        ? `SBML Level ${base.level} Version ${base.version}` + (base.modelId && base.modelId !== name ? ` - ${base.modelId}` : "")
+        : "";
     for (const s of ["error", "warning", "info"]) {
       $("n-" + s).textContent = report.findings.filter((f) => f.severity === s).length;
     }
@@ -381,8 +422,51 @@ footer a { color: var(--accent); }
       codes.map(([c, t]) => `<option value="${esc(c)}">${esc(c)} ${esc(t)}</option>`).join("");
     if (codes.some(([c]) => c === current)) $("code-filter").value = current;
     document.querySelector("main").classList.add("wide");
-    renderAntimony();
+    if (!dirty && $("ant-edit").value !== (report.antimony || "")) {
+      $("ant-edit").value = report.antimony || "";
+    }
+    renderAntimony($("ant-edit").value, true);
+    $("list").classList.remove("stale");
+    panelControls();
     render();
+  }
+
+  function panelControls() {
+    const parseErrors = report.findings.some((f) => f.code === "AN001");
+    $("ant-recheck").disabled = !dirty;
+    $("ant-revert").hidden = !(edited || dirty);
+    $("ant-sbml").hidden = !edited || dirty || parseErrors;
+  }
+
+  function recheck() {
+    if (!api) return;
+    const text = $("ant-edit").value;
+    const t0 = performance.now();
+    try {
+      // The edit is merged into the original file: anything the text does
+      // not show (units, SBO terms, annotations) is kept.
+      report = JSON.parse(api.check_edit(originalXml, text));
+    } catch (e) {
+      status("The checker failed on the edited model: " + e, true);
+      return;
+    }
+    const ms = Math.round(performance.now() - t0);
+    edited = true;
+    dirty = false;
+    const errors = report.findings.filter((f) => f.code === "AN001").length;
+    status(errors
+      ? `The edited text has ${errors} Antimony error${errors > 1 ? "s" : ""}: fix ${errors > 1 ? "them" : "it"} and re-check.`
+      : `Checked the edited model in ${ms} ms.`, errors > 0);
+    show();
+  }
+
+  function revert() {
+    report = original;
+    edited = false;
+    dirty = false;
+    $("ant-edit").value = report.antimony || "";
+    status("Back to the original model, " + fileName + ".");
+    show();
   }
 
   // ---- Antimony panel
@@ -398,15 +482,18 @@ footer a { color: var(--accent); }
       (comment ? `<span class="tk-c">${esc(comment)}</span>` : "");
   }
 
-  function renderAntimony() {
-    const text = report.antimony || "";
+  // The highlighted layer under the editor. Markers only when the findings
+  // belong to this text (not while it is being edited).
+  function renderAntimony(text, markers) {
     // The worst severity of the findings on each line.
     const rank = { error: 3, warning: 2, info: 1 };
     const worst = new Map();
-    for (const f of report.findings) {
-      if (f.line && (rank[f.severity] > (rank[worst.get(f.line)] || 0))) worst.set(f.line, f.severity);
+    if (markers) {
+      for (const f of report.findings) {
+        if (f.line && (rank[f.severity] > (rank[worst.get(f.line)] || 0))) worst.set(f.line, f.severity);
+      }
     }
-    $("ant").innerHTML = text.replace(/\n$/, "").split("\n").map((l, i) => {
+    $("ant").innerHTML = text.split("\n").map((l, i) => {
       const n = i + 1;
       const w = worst.get(n);
       const title = w ? ` title="Findings on this line: click to show them"` : "";
@@ -419,8 +506,8 @@ footer a { color: var(--accent); }
     const el = $("L" + n);
     if (!el) return;
     el.classList.add("hl");
-    const pane = $("ant");
-    pane.scrollTop = el.offsetTop - pane.offsetTop - pane.clientHeight / 3;
+    const pane = $("ant-scroll");
+    pane.scrollTop = el.offsetTop - pane.clientHeight / 3;
     // On a narrow screen the panel is below the findings: bring it into view.
     const r = pane.getBoundingClientRect();
     if (r.top > innerHeight || r.bottom < 0) pane.scrollIntoView({ block: "center" });
@@ -443,19 +530,57 @@ footer a { color: var(--accent); }
     });
   });
 
+  function download(text, name, type) {
+    const blob = new Blob([text], { type });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  const stem = () => fileName.replace(/\.[^.]*$/, "");
+
   $("ant-copy").onclick = () => {
-    navigator.clipboard.writeText(report.antimony || "").then(
+    navigator.clipboard.writeText($("ant-edit").value).then(
       () => status("Antimony copied to the clipboard."),
       () => status("Could not copy to the clipboard.", true));
   };
-  $("ant-save").onclick = () => {
-    const blob = new Blob([report.antimony || ""], { type: "text/plain" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = fileName.replace(/\.[^.]*$/, "") + ".ant";
-    a.click();
-    URL.revokeObjectURL(a.href);
+  $("ant-save").onclick = () =>
+    download($("ant-edit").value, stem() + (edited || dirty ? "-edited" : "") + ".ant", "text/plain");
+  $("ant-sbml").onclick = () => {
+    const xml = api.edited_sbml(originalXml, $("ant-edit").value);
+    if (!xml) {
+      status("The edited text has errors, so it cannot be saved as SBML.", true);
+      return;
+    }
+    download(xml, stem() + "-edited.xml", "application/xml");
   };
+  $("ant-recheck").onclick = recheck;
+  $("ant-revert").onclick = revert;
+
+  // Editing: keep the highlighted layer in step, and mark the findings as
+  // out of date until the next re-check.
+  let pending = 0;
+  $("ant-edit").addEventListener("input", () => {
+    if (!dirty) {
+      dirty = true;
+      $("list").classList.add("stale");
+      panelControls();
+      status("Edited. Press Re-check (or Ctrl+Enter) to check your changes.");
+    }
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => renderAntimony($("ant-edit").value, false));
+  });
+  $("ant-edit").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      if (dirty) recheck();
+    } else if (e.key === "Tab" && !e.shiftKey && !e.altKey && !e.ctrlKey) {
+      // Indent rather than leave the editor; execCommand keeps undo working.
+      e.preventDefault();
+      document.execCommand("insertText", false, "  ");
+    }
+  });
 
   $("list").addEventListener("click", (e) => {
     const card = e.target.closest(".finding.linked");

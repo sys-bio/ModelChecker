@@ -40,10 +40,11 @@ pub fn report(r: &Report) -> String {
         field_opt_str(&mut s, "reaction", f.reaction.as_deref());
         s.push(',');
         // The element's line in the Antimony text.
-        let line = r
-            .antimony
-            .as_ref()
-            .and_then(|a| a.line_of(f.element.kind(), &f.element.id()));
+        let line = f.line.or_else(|| {
+            r.antimony
+                .as_ref()
+                .and_then(|a| a.line_of(f.element.kind(), &f.element.id()))
+        });
         string(&mut s, "line");
         s.push(':');
         match line {

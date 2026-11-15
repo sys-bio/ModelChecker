@@ -8,7 +8,16 @@ license.workspace = true
 # No I/O and no platform code: everything here must build for wasm32.
 [dependencies]
 sbml-io.workspace = true
+# Checking models written in Antimony (the web page's editable panel).
+antimony-rs = { workspace = true, features = ["sbml"], optional = true }
+
+[features]
+antimony = ["dep:antimony-rs"]
 
 # Tests write their models in Antimony and convert them to SBML.
 [dev-dependencies]
 antimony-rs = { workspace = true, features = ["sbml"] }
+
+[[example]]
+name = "edit_roundtrip"
+required-features = ["antimony"]
