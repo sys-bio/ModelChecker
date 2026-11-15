@@ -55,7 +55,7 @@ pub fn apply_edit(original_xml: &str, edited: &str) -> Result<Edited, Vec<Findin
         return Err(vec![finding(SB_READ, Severity::Error, "The original document has no model.".into(), None)]);
     };
     let (prepared, map) = antimony_out::prepare(orig_model);
-    let base_text = antimony_out::write(&prepared).text;
+    let base_text = antimony_out::write(&prepared, &orig.namespaces).text;
 
     let mine = antimony::parse(edited);
     let base = antimony::parse(&base_text);
@@ -208,7 +208,7 @@ mod tests {
 
     fn text() -> String {
         let doc = sbml_io::read(XML).unwrap().document;
-        antimony_out::to_antimony(doc.model.as_ref().unwrap()).text
+        antimony_out::to_antimony(doc.model.as_ref().unwrap(), &doc.namespaces).text
     }
 
     #[test]
@@ -256,6 +256,49 @@ mod tests {
         let mut want = sbml_io::read(XML).unwrap().document;
         want.model.as_mut().unwrap().parameters[0].units = Some("second".into());
         assert_eq!(sbml_io::write(&e.document), sbml_io::write(&want));
+    }
+
+    #[test]
+    fn database_links_are_shown_and_editable() {
+        // S gets a link, with another tool's element beside the RDF.
+        let mut doc = sbml_io::read(XML).unwrap().document;
+        let s = &mut doc.model.as_mut().unwrap().species[0];
+        s.meta.metaid = Some("m_S".into());
+        s.meta.annotation = Some(
+            "<other:tool xmlns:other=\"http://example.org/tool\">keep me</other:tool>\n\
+             <rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" \
+             xmlns:bqbiol=\"http://biomodels.net/biology-qualifiers/\">\
+             <rdf:Description rdf:about=\"#m_S\"><bqbiol:is><rdf:Bag>\
+             <rdf:li rdf:resource=\"https://identifiers.org/CHEBI:15422\"/></rdf:Bag></bqbiol:is>\
+             </rdf:Description></rdf:RDF>"
+                .into(),
+        );
+        let xml = sbml_io::write(&doc);
+        let t = antimony_out::to_antimony(doc.model.as_ref().unwrap(), &doc.namespaces).text;
+        assert!(t.contains("S identity \"https://identifiers.org/CHEBI:15422\";"), "{t}");
+        // Unedited: the original exactly.
+        let e = apply_edit(&xml, &t).ok().unwrap();
+        assert_eq!(sbml_io::write(&e.document), xml);
+        // Change S's link and give P one.
+        let edited = t
+            .replace("CHEBI:15422", "CHEBI:17234")
+            .replace("  // SBO terms:", "  P identity \"https://identifiers.org/CHEBI:4167\";\n\n  // SBO terms:");
+        let e = apply_edit(&xml, &edited).ok().unwrap();
+        let m = e.document.model.as_ref().unwrap();
+        let s = &m.species[0];
+        let a = s.meta.annotation.as_deref().unwrap();
+        assert!(a.contains("CHEBI:17234") && !a.contains("CHEBI:15422"), "{a}");
+        assert!(a.contains("keep me"), "the other tool's annotation is kept: {a}");
+        assert_eq!(s.meta.metaid.as_deref(), Some("m_S"));
+        let p = &m.species[1];
+        assert!(p.meta.annotation.as_deref().unwrap().contains("CHEBI:4167"));
+        assert!(p.meta.metaid.is_some());
+        // Nothing else changed.
+        let mut rest = e.document.clone();
+        let rm = rest.model.as_mut().unwrap();
+        rm.species[0].meta = doc.model.as_ref().unwrap().species[0].meta.clone();
+        rm.species[1].meta = doc.model.as_ref().unwrap().species[1].meta.clone();
+        assert_eq!(sbml_io::write(&rest), xml);
     }
 
     #[test]

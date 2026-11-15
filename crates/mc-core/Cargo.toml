@@ -10,6 +10,7 @@ license.workspace = true
 sbml-io.workspace = true
 # Checking models written in Antimony (the web page's editable panel).
 antimony-rs = { workspace = true, features = ["sbml"], optional = true }
+regex-lite = "0.1"
 
 [features]
 antimony = ["dep:antimony-rs"]

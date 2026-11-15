@@ -17,7 +17,7 @@ fn main() {
         let Ok(xml) = std::fs::read_to_string(f) else { continue };
         let Ok(read) = sbml_io::read(&xml) else { continue };
         let Some(model) = &read.document.model else { continue };
-        let text = mc_core::antimony_out::to_antimony(model).text;
+        let text = mc_core::antimony_out::to_antimony(model, &read.document.namespaces).text;
         let loaded = antimony::parse(&text);
         if loaded.has_errors() {
             bad += 1;

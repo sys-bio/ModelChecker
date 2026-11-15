@@ -17,11 +17,12 @@
 //! the edited text was deleted by the user; one missing from `base` was
 //! added. An unedited text therefore gives back the original exactly.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
+use sbml_io::miriam::{CvTerm, read_annotation, write_annotation};
 use sbml_io::{
     Compartment, Document, Event, FunctionDefinition, InitialAssignment, KineticLaw,
-    LocalParameter, Model, ModifierSpeciesReference, Parameter, Reaction, Rule, Species,
+    LocalParameter, Meta, Model, ModifierSpeciesReference, Parameter, Reaction, Rule, Species,
     SpeciesReference,
 };
 
@@ -62,7 +63,109 @@ pub fn merge(orig: &Document, base: &Model, mine: &Model) -> Document {
     merge_list(&mut m.rules, &base.rules, &mine.rules, rule_key, update_rule);
     merge_list(&mut m.reactions, &base.reactions, &mine.reactions, |r, _| r.id.clone(), update_reaction);
     merge_list(&mut m.events, &base.events, &mine.events, event_key, update_event);
+    merge_links(m, base, mine, &orig.namespaces);
     doc
+}
+
+/// An element's database links (biology qualifiers), from its annotation.
+fn links_of(meta: &Meta, namespaces: &[(Option<String>, String)]) -> Vec<CvTerm> {
+    meta.annotation
+        .as_deref()
+        .map(|x| read_annotation(x, namespaces).terms)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|t| !t.model && !t.resources.is_empty())
+        .collect()
+}
+
+/// Applies edits of database links. Where an element's links in the edited
+/// text differ from the text as written, its annotation is rebuilt with the
+/// edited links, keeping everything else in it: the model qualifiers, the
+/// history, RDF this does not take apart, and other tools' annotations.
+fn merge_links(m: &mut Model, base: &Model, mine: &Model, namespaces: &[(Option<String>, String)]) {
+    let mut metaids: HashSet<String> = HashSet::new();
+    collect_metaids(m, &mut metaids);
+    let mut apply = |id: &str, meta: &mut Meta, b: Option<&Meta>, n: Option<&Meta>| {
+        let (Some(b), Some(n)) = (b, n) else { return };
+        // Text written by Antimony declares its own namespaces.
+        let (bt, nt) = (links_of(b, &[]), links_of(n, &[]));
+        if bt == nt {
+            return;
+        }
+        rewrite_links(id, meta, nt, namespaces, &mut metaids);
+    };
+    for c in &mut m.compartments {
+        let b = base.compartments.iter().find(|x| x.id == c.id).map(|x| &x.meta);
+        let n = mine.compartments.iter().find(|x| x.id == c.id).map(|x| &x.meta);
+        apply(&c.id.clone(), &mut c.meta, b, n);
+    }
+    for s in &mut m.species {
+        let b = base.species.iter().find(|x| x.id == s.id).map(|x| &x.meta);
+        let n = mine.species.iter().find(|x| x.id == s.id).map(|x| &x.meta);
+        apply(&s.id.clone(), &mut s.meta, b, n);
+    }
+    for p in &mut m.parameters {
+        let b = base.parameters.iter().find(|x| x.id == p.id).map(|x| &x.meta);
+        let n = mine.parameters.iter().find(|x| x.id == p.id).map(|x| &x.meta);
+        apply(&p.id.clone(), &mut p.meta, b, n);
+    }
+    for r in &mut m.reactions {
+        let b = base.reactions.iter().find(|x| x.id == r.id).map(|x| &x.meta);
+        let n = mine.reactions.iter().find(|x| x.id == r.id).map(|x| &x.meta);
+        apply(&r.id.clone(), &mut r.meta, b, n);
+    }
+}
+
+fn collect_metaids(m: &Model, out: &mut HashSet<String>) {
+    let mut add = |meta: &Meta| {
+        if let Some(id) = &meta.metaid {
+            out.insert(id.clone());
+        }
+    };
+    add(&m.meta);
+    m.compartments.iter().for_each(|x| add(&x.meta));
+    m.species.iter().for_each(|x| add(&x.meta));
+    m.parameters.iter().for_each(|x| add(&x.meta));
+    m.reactions.iter().for_each(|x| add(&x.meta));
+    m.function_definitions.iter().for_each(|x| add(&x.meta));
+    m.unit_definitions.iter().for_each(|x| add(&x.meta));
+    m.events.iter().for_each(|x| add(&x.meta));
+}
+
+/// `meta`'s annotation with its biology links replaced by `links`.
+fn rewrite_links(
+    id: &str,
+    meta: &mut Meta,
+    links: Vec<CvTerm>,
+    namespaces: &[(Option<String>, String)],
+    metaids: &mut HashSet<String>,
+) {
+    let old = meta
+        .annotation
+        .as_deref()
+        .map(|x| read_annotation(x, namespaces))
+        .unwrap_or_default();
+    let mut terms: Vec<CvTerm> = old.terms.iter().filter(|t| t.model).cloned().collect();
+    terms.extend(links);
+    // The RDF is about the element by its metaid; give it one if needed.
+    let metaid = match &meta.metaid {
+        Some(m) => m.clone(),
+        None => {
+            let mut m = format!("meta_{id}");
+            while metaids.contains(&m) {
+                m.push('_');
+            }
+            metaids.insert(m.clone());
+            m
+        }
+    };
+    let rdf = write_annotation(&metaid, &terms, &old.history, &old.descriptions);
+    let mut parts: Vec<String> = old.other.iter().map(|o| o.xml.clone()).collect();
+    if let Some(r) = rdf {
+        meta.metaid = Some(metaid);
+        parts.push(r);
+    }
+    meta.annotation = (!parts.is_empty()).then(|| parts.join("\n"));
 }
 
 /// Merges one list of elements keyed by `key` (given the element and its

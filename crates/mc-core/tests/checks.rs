@@ -705,3 +705,91 @@ fn trigger_true_at_start_and_never_firing() {
     let r = run("J1: S => P; k*S\nE1: at q > 5: k = 2\nS = 1; P = 0; k = 1; q = 1");
     assert_has!(r, RU_EVENT_NEVER);
 }
+
+// ------------------------------------------------- annotations
+
+/// An RDF annotation with one `bqbiol:<qualifier>` link.
+fn link(metaid: &str, qualifier: &str, uri: &str) -> String {
+    format!(
+        "<rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\" \
+         xmlns:bqbiol=\"http://biomodels.net/biology-qualifiers/\">\
+         <rdf:Description rdf:about=\"#{metaid}\"><bqbiol:{qualifier}><rdf:Bag>\
+         <rdf:li rdf:resource=\"{uri}\"/></rdf:Bag></bqbiol:{qualifier}></rdf:Description></rdf:RDF>"
+    )
+}
+
+/// The simple S => P model with S annotated as `uri` (qualifier `q`).
+fn run_annotated(q: &str, uri: &str) -> Report {
+    let mut d = doc("J1: S => P; k*S\nS = 1; P = 0; k = 1");
+    let s = &mut d.model.as_mut().unwrap().species[0];
+    s.meta.metaid = Some("meta_S".into());
+    s.meta.annotation = Some(link("meta_S", q, uri));
+    mc_core::check(&sbml_io::write(&d))
+}
+
+fn message_of<'r>(r: &'r Report, code: &str) -> &'r str {
+    r.findings
+        .iter()
+        .find(|f| f.code == code)
+        .map(|f| f.message.as_str())
+        .unwrap_or_else(|| panic!("no {code} in:\n{}", show(r)))
+}
+
+#[test]
+fn missing_database_links() {
+    let r = run_annotated("is", "https://identifiers.org/CHEBI:15422");
+    let m = message_of(&r, MD_NO_LINKS);
+    assert!(m.starts_with("1 of 2 species have no database links"), "{m}");
+    assert!(m.contains(": P."), "{m}");
+    assert_has!(r, MD_MODEL_INFO);
+}
+
+#[test]
+fn good_links_pass() {
+    for uri in [
+        "https://identifiers.org/CHEBI:15422",
+        "http://identifiers.org/chebi/CHEBI:15422",
+        "https://identifiers.org/kegg.compound:C00002",
+    ] {
+        let r = run_annotated("is", uri);
+        assert_not!(r, MD_BROKEN_LINK);
+        assert_not!(r, MD_WRONG_KIND);
+    }
+}
+
+#[test]
+fn broken_links() {
+    // ChEBI ids carry their prefix: 15422 alone is not one.
+    let r = run_annotated("is", "http://identifiers.org/chebi/15422");
+    assert!(message_of(&r, MD_BROKEN_LINK).contains("is not a ChEBI id"), "{}", show(&r));
+    let r = run_annotated("is", "https://identifiers.org/refseq_synonym/b0001");
+    assert!(message_of(&r, MD_BROKEN_LINK).contains("refseq_synonym (1)"), "{}", show(&r));
+}
+
+#[test]
+fn old_and_other_links() {
+    let r = run_annotated("is", "urn:miriam:chebi:CHEBI%3A15422");
+    assert!(message_of(&r, MD_OLD_LINK).contains("urn:miriam"), "{}", show(&r));
+    assert_not!(r, MD_BROKEN_LINK);
+    let r = run_annotated("is", "http://example.org/glucose");
+    assert_has!(r, MD_OTHER_LINK);
+}
+
+#[test]
+fn link_of_the_wrong_kind() {
+    // A species cannot be a reaction.
+    let r = run_annotated("is", "https://identifiers.org/rhea:10000");
+    assert_has!(r, MD_WRONG_KIND);
+    // But it may be part of one, or a version of something.
+    let r = run_annotated("isPartOf", "https://identifiers.org/rhea:10000");
+    assert_not!(r, MD_WRONG_KIND);
+}
+
+#[test]
+fn elements_without_names() {
+    let r = run("J1: species_0000001 => species_0000002; k*species_0000001\n\
+                 species_0000001 = 1; species_0000002 = 0; k = 1");
+    assert_has!(r, MD_NO_NAME);
+    let r = run("J1: glucose => g6p; k*glucose\nglucose = 1; g6p = 0; k = 1");
+    assert_not!(r, MD_NO_NAME);
+}

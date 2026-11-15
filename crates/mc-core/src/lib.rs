@@ -36,6 +36,8 @@ pub mod moiety;
 pub mod sample;
 pub mod sbo;
 pub mod sbo_data;
+pub mod registry;
+pub mod registry_data;
 pub mod units;
 pub mod value;
 pub mod view;
@@ -146,8 +148,8 @@ pub fn check_document(doc: &sbml_io::Document) -> Report {
     };
     report.model_id = model.id.clone();
     report.model_name = model.name.clone();
-    report.findings.extend(checks::run(model, doc.level));
-    report.antimony = Some(antimony_out::to_antimony(model));
+    report.findings.extend(checks::run(model, doc.level, &doc.namespaces));
+    report.antimony = Some(antimony_out::to_antimony(model, &doc.namespaces));
     // Show the reaction itself with every finding about one.
     for f in &mut report.findings {
         let id = match &f.element {

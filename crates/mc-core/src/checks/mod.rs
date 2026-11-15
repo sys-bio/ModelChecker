@@ -1,5 +1,6 @@
 //! The checks, one module per family.
 
+mod annotations;
 mod mass_action;
 mod network;
 mod poly;
@@ -63,13 +64,15 @@ impl Ctx<'_, '_> {
     }
 }
 
-/// Runs every check on `model`.
-pub fn run(model: &Model, level: u32) -> Vec<Finding> {
+/// Runs every check on `model`. `namespaces` are those declared on the
+/// document's `<sbml>` element, which annotations may use undeclared.
+pub fn run(model: &Model, level: u32, namespaces: &[(Option<String>, String)]) -> Vec<Finding> {
     let view = View::new(model, level);
     let mut ctx = Ctx {
         view: &view,
         findings: Vec::new(),
     };
+    annotations::check(&mut ctx, namespaces);
     symbols::check(&mut ctx);
     singular::check(&mut ctx);
     reactions::check(&mut ctx);

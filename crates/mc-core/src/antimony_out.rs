@@ -343,9 +343,9 @@ fn rename_math(m: &Math, map: &HashMap<String, String>) -> Math {
 
 /// The model as Antimony, with each element's line keyed by the model's own
 /// kinds and ids.
-pub fn to_antimony(model: &Model) -> AntimonyText {
+pub fn to_antimony(model: &Model, namespaces: &[(Option<String>, String)]) -> AntimonyText {
     let (prepared, map) = prepare(model);
-    let mut text = write(&prepared);
+    let mut text = write(&prepared, namespaces);
     for entry in &mut text.lines {
         let (kind, id) = map.key(entry.0, &entry.1);
         entry.0 = kind;
@@ -356,7 +356,7 @@ pub fn to_antimony(model: &Model) -> AntimonyText {
 
 /// A prepared model ([`prepare`]) as Antimony; line keys are the prepared
 /// model's ids.
-pub fn write(model: &Model) -> AntimonyText {
+pub fn write(model: &Model, namespaces: &[(Option<String>, String)]) -> AntimonyText {
     let mut o = Out {
         text: String::new(),
         line: 0,
@@ -366,8 +366,8 @@ pub fn write(model: &Model) -> AntimonyText {
     if let Some(name) = &model.name {
         o.push(&format!("// {name}"));
     }
-    o.push("// Written from SBML by Model Checker. Annotations (database links, notes)");
-    o.push("// are not shown here, but are kept when you edit. Local parameters are");
+    o.push("// Written from SBML by Model Checker. Notes and the model's history are");
+    o.push("// not shown here, but are kept when you edit. Local parameters are");
     o.push("// written as reaction_name (J1_k1).");
     o.blank();
 
@@ -670,6 +670,65 @@ pub fn write(model: &Model) -> AntimonyText {
         }
     }
 
+    // Database links (MIRIAM annotations), one line per qualifier:
+    // `S identity "https://identifiers.org/CHEBI:17234", "..."`.
+    let mut link_lines: Vec<String> = Vec::new();
+    let mut add_links = |id: &str, meta: &sbml_io::Meta| {
+        let Some(xml) = meta.annotation.as_deref() else { return };
+        let a = sbml_io::miriam::read_annotation(xml, namespaces);
+        for t in a.terms.iter().filter(|t| !t.model && !t.resources.is_empty()) {
+            let quoted = t.resources.iter().all(|r| !r.contains('"'));
+            match qualifier_keyword(&t.qualifier) {
+                Some(k) if quoted => {
+                    let uris: Vec<String> = t.resources.iter().map(|r| format!("\"{r}\"")).collect();
+                    link_lines.push(format!("  {id} {k} {};", uris.join(", ")));
+                }
+                _ => link_lines.push(format!(
+                    "  // {id} {} {} (not editable here)",
+                    t.qualifier,
+                    t.resources.join(", ")
+                )),
+            }
+        }
+    };
+    for c in &model.compartments {
+        add_links(&c.id, &c.meta);
+    }
+    for s in &model.species {
+        add_links(&s.id, &s.meta);
+    }
+    for p in &model.parameters {
+        add_links(&p.id, &p.meta);
+    }
+    for r in &model.reactions {
+        add_links(&r.id, &r.meta);
+    }
+    // The model's own links (its publication, organism) have no Antimony
+    // statement that maps back cleanly: shown for reading.
+    let model_links: Vec<String> = model
+        .meta
+        .annotation
+        .as_deref()
+        .map(|xml| sbml_io::miriam::read_annotation(xml, namespaces).terms)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|t| !t.resources.is_empty())
+        .map(|t| format!("  // model {} {}", t.qualifier, t.resources.join(", ")))
+        .collect();
+    if !link_lines.is_empty() || !model_links.is_empty() {
+        o.blank();
+        o.push("  // Database links (annotations):");
+        for l in link_lines {
+            o.push(&l);
+        }
+        if !model_links.is_empty() {
+            o.push("  // The model's own links (not editable here):");
+            for l in model_links {
+                o.push(&l);
+            }
+        }
+    }
+
     // SBO terms. Antimony has none for a rate law apart from its reaction,
     // so those are shown as comments.
     let sbo = |meta: &sbml_io::Meta| meta.sbo_term.as_deref().and_then(crate::sbo::parse);
@@ -719,6 +778,27 @@ pub fn write(model: &Model) -> AntimonyText {
         text: o.text,
         lines: o.lines,
     }
+}
+
+/// The Antimony word for a biology qualifier: `is` is `identity`,
+/// `isVersionOf` is `hypernym`, and so on.
+fn qualifier_keyword(q: &str) -> Option<&'static str> {
+    Some(match q {
+        "is" => "identity",
+        "hasPart" => "part",
+        "isPartOf" => "parthood",
+        "isVersionOf" => "hypernym",
+        "hasVersion" => "version",
+        "isHomologTo" => "homolog",
+        "isDescribedBy" => "description",
+        "isEncodedBy" => "encoder",
+        "encodes" => "encodement",
+        "occursIn" => "container",
+        "hasProperty" => "property",
+        "isPropertyOf" => "propertyBearer",
+        "hasTaxon" => "taxon",
+        _ => return None,
+    })
 }
 
 /// `  // a name`, the term's name as a trailing comment.
@@ -803,7 +883,7 @@ mod tests {
   </model>
 </sbml>"#;
         let doc = sbml_io::read(xml).unwrap().document;
-        let a = to_antimony(doc.model.as_ref().unwrap());
+        let a = to_antimony(doc.model.as_ref().unwrap(), &doc.namespaces);
         assert!(a.text.contains("  J1: 2 S => $P; k*S;"), "{}", a.text);
         assert!(a.text.contains("  species $P in c;"), "{}", a.text);
         assert!(a.text.contains("  k = 0.5;"), "{}", a.text);

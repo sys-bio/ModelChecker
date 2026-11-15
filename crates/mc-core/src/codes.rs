@@ -50,6 +50,14 @@ pub const SO_NOT_MASS_ACTION: &str = "SO006";
 pub const SO_MASS_ACTION_MISMATCH: &str = "SO007";
 pub const SO_SHAPE_MISMATCH: &str = "SO008";
 
+pub const MD_NO_LINKS: &str = "MD001";
+pub const MD_MODEL_INFO: &str = "MD002";
+pub const MD_BROKEN_LINK: &str = "MD003";
+pub const MD_OLD_LINK: &str = "MD004";
+pub const MD_WRONG_KIND: &str = "MD005";
+pub const MD_NO_NAME: &str = "MD006";
+pub const MD_OTHER_LINK: &str = "MD007";
+
 pub const RU_RULE_LOOP: &str = "RU001";
 pub const RU_INITIAL_LOOP: &str = "RU002";
 pub const RU_SET_TWICE: &str = "RU003";
@@ -80,6 +88,50 @@ pub const SB_STRUCTURE: &str = "SB003";
 pub const SB_NO_MODEL: &str = "SB004";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: MD_NO_LINKS,
+        title: "Missing database links",
+        help: "Species, reactions or compartments without annotations linking them to \
+               database entries (ChEBI, UniProt, GO, ...), which say what each one is.",
+    },
+    Code {
+        code: MD_MODEL_INFO,
+        title: "Missing model information",
+        help: "The model does not say who made it, when, which publication it comes from, \
+               which organism it describes, or what it is. Repositories such as BioModels ask \
+               for these.",
+    },
+    Code {
+        code: MD_BROKEN_LINK,
+        title: "Database link cannot work",
+        help: "A database link names a database identifiers.org does not know, or an id that \
+               is not of that database's form (checked against the identifiers.org registry), \
+               so it cannot be followed.",
+    },
+    Code {
+        code: MD_OLD_LINK,
+        title: "Old-style database links",
+        help: "Links in the old urn:miriam: form, or to databases identifiers.org lists as \
+               deprecated. They still work for now.",
+    },
+    Code {
+        code: MD_WRONG_KIND,
+        title: "Database link of the wrong kind",
+        help: "An element is annotated as being (`is`) something it cannot be, such as a \
+               species that is a reaction or a reaction that is a molecule.",
+    },
+    Code {
+        code: MD_NO_NAME,
+        title: "Elements without names",
+        help: "Elements with only machine-style ids (species_0000012, re5) and no names, \
+               which makes the model hard to read.",
+    },
+    Code {
+        code: MD_OTHER_LINK,
+        title: "Links that cannot be checked",
+        help: "Annotations pointing to addresses that are not identifiers.org links, which \
+               cannot be checked against the registry.",
+    },
     Code {
         code: RU_RULE_LOOP,
         title: "Rules in a loop",

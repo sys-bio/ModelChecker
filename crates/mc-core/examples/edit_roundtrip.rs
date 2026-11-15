@@ -53,6 +53,7 @@ fn main() {
     let (mut models, mut identity_ok, mut edit_ok, mut edit_tried) = (0, 0, 0, 0);
     let (mut law_ok, mut law_tried) = (0, 0);
     let (mut sbo_ok, mut sbo_tried, mut units_ok, mut units_tried) = (0, 0, 0, 0);
+    let (mut links_ok, mut links_tried) = (0, 0);
     let mut failures = 0;
     for f in &files {
         let Ok(xml) = std::fs::read_to_string(f) else { continue };
@@ -61,7 +62,7 @@ fn main() {
         let Some(model) = &orig.model else { continue };
         models += 1;
         let name = f.file_name().unwrap().to_string_lossy().to_string();
-        let text = to_antimony(model).text;
+        let text = to_antimony(model, &orig.namespaces).text;
 
         // 1. Unedited.
         match apply_edit(&xml, &text) {
@@ -153,6 +154,63 @@ fn main() {
                         if failures <= 10 {
                             println!("{name}: units edit gave errors: {:?}", errs.first().map(|e| &e.message));
                         }
+                    }
+                }
+            }
+        }
+
+        // 6. One database link changed: only that element's annotation (and
+        // metaid) may differ, and it must hold the new link, not the old.
+        if let Some(line) = text.lines().find(|l| l.contains(" identity \"") && !l.trim_start().starts_with("//")) {
+            let id = line.trim_start().split(' ').next().unwrap().to_string();
+            let old_uri = line.split('"').nth(1).unwrap().to_string();
+            let new_uri = if old_uri.contains("CHEBI:15422") {
+                "https://identifiers.org/CHEBI:17234"
+            } else {
+                "https://identifiers.org/CHEBI:15422"
+            };
+            let new_line = line.replacen(&old_uri, new_uri, 1);
+            match apply_edit(&xml, &text.replacen(line, &new_line, 1)) {
+                Ok(e) => {
+                    links_tried += 1;
+                    let mut got = e.document.clone();
+                    let gm = got.model.as_mut().unwrap();
+                    let new_meta = find_meta(gm, &id).map(|(_, meta)| meta.clone());
+                    let mut copy = orig.clone();
+                    let orig_meta = find_meta(copy.model.as_mut().unwrap(), &id).map(|(_, meta)| meta.clone());
+                    // Judge by the SBML links themselves: other tools' own
+                    // copies (COPASI keeps one) are rightly left alone.
+                    let ok_link = new_meta.as_ref().and_then(|m| m.annotation.as_deref()).is_some_and(|a| {
+                        let terms = sbml_io::miriam::read_annotation(a, &orig.namespaces).terms;
+                        let is: Vec<&String> = terms
+                            .iter()
+                            .filter(|t| !t.model && t.qualifier == "is")
+                            .flat_map(|t| &t.resources)
+                            .collect();
+                        is.iter().any(|r| *r == new_uri)
+                            && (!is.iter().any(|r| **r == old_uri) || line.matches(&old_uri).count() > 1)
+                    });
+                    // Put the original annotation back: the rest must be untouched.
+                    if let (Some((_, meta)), Some(o)) = (find_meta(gm, &id), orig_meta) {
+                        *meta = o;
+                    }
+                    if ok_link && sbml_io::write(&got) == sbml_io::write(&orig) {
+                        links_ok += 1;
+                    } else {
+                        failures += 1;
+                        if failures <= 10 {
+                            println!("{name}: editing a link of {id} {}", if ok_link {
+                                format!("changed more: {}", first_difference(model, got.model.as_ref().unwrap()))
+                            } else {
+                                "did not change the link".into()
+                            });
+                        }
+                    }
+                }
+                Err(errs) => {
+                    failures += 1;
+                    if failures <= 10 {
+                        println!("{name}: link edit gave errors: {:?}", errs.first().map(|e| &e.message));
                     }
                 }
             }
@@ -251,4 +309,5 @@ fn main() {
     println!("changing one rate law changes only that law:  {law_ok} of {law_tried}");
     println!("changing one SBO term changes only that term: {sbo_ok} of {sbo_tried}");
     println!("changing one unit changes only that unit:     {units_ok} of {units_tried}");
+    println!("changing one link changes only that link:     {links_ok} of {links_tried}");
 }
