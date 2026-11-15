@@ -242,3 +242,148 @@ fn negative_species_is_not_held_to_positivity() {
     assert_not!(r, RL_NEGATIVITY);
     assert_not!(r, RL_POSSIBLE_NEGATIVITY);
 }
+
+// ---------------------------------------------------------------- units
+
+fn unit_def(id: &str, parts: &[(&str, f64, i32)]) -> sbml_io::UnitDefinition {
+    sbml_io::UnitDefinition {
+        id: id.into(),
+        units: parts
+            .iter()
+            .map(|(kind, exponent, scale)| sbml_io::Unit {
+                kind: kind.to_string(),
+                exponent: Some(*exponent),
+                scale: Some(*scale),
+                multiplier: Some(1.0),
+                ..Default::default()
+            })
+            .collect(),
+        ..Default::default()
+    }
+}
+
+/// `ant` with mole, litre and second as the model's units, and units for
+/// the named parameters: `per_s`, `M` (mol/l), `mM`, `M_per_s`.
+fn run_units(ant: &str, params: &[(&str, &str)]) -> Report {
+    let mut d = doc(ant);
+    let m = d.model.as_mut().unwrap();
+    m.substance_units = Some("mole".into());
+    m.extent_units = Some("mole".into());
+    m.time_units = Some("second".into());
+    m.volume_units = Some("litre".into());
+    m.unit_definitions = vec![
+        unit_def("per_s", &[("second", -1.0, 0)]),
+        unit_def("M", &[("mole", 1.0, 0), ("litre", -1.0, 0)]),
+        unit_def("mM", &[("mole", 1.0, -3), ("litre", -1.0, 0)]),
+        unit_def("M_per_s", &[("mole", 1.0, 0), ("litre", -1.0, 0), ("second", -1.0, 0)]),
+    ];
+    for (p, u) in params {
+        let par = m.parameters.iter_mut().find(|x| x.id == *p).unwrap();
+        par.units = Some(u.to_string());
+    }
+    mc_core::check(&sbml_io::write(&d))
+}
+
+fn unit_codes(r: &Report) -> Vec<&'static str> {
+    codes(r).into_iter().filter(|c| c.starts_with("UN")).collect()
+}
+
+#[test]
+fn units_consistent_michaelis_menten() {
+    let r = run_units(
+        "compartment cell = 2\nspecies S in cell, P in cell\n\
+         J1: S => P; cell*Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 0.5",
+        &[("Vm", "M_per_s"), ("Km", "M")],
+    );
+    assert!(unit_codes(&r).is_empty(), "{}", show(&r));
+}
+
+#[test]
+fn units_missing_volume_factor() {
+    let r = run_units(
+        "compartment cell = 2\nspecies S in cell, P in cell\n\
+         J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 0.5",
+        &[("Vm", "M_per_s"), ("Km", "M")],
+    );
+    assert_has!(r, UN_MISSING_VOLUME);
+    assert_not!(r, UN_RATE_UNITS);
+}
+
+#[test]
+fn units_wrong_rate() {
+    // k*S in a 1-litre compartment with k per second gives mol/(l*s), short
+    // of the volume; k in M_per_s gives M^2/s: just wrong.
+    let r = run_units(
+        "compartment cell = 1\nspecies S in cell, P in cell\n\
+         J1: S => P; cell*k*S\nS = 1; P = 0; k = 1",
+        &[("k", "M_per_s")],
+    );
+    assert_has!(r, UN_RATE_UNITS);
+}
+
+#[test]
+fn units_adding_different_dimensions() {
+    let r = run_units(
+        "compartment cell = 1\nspecies S in cell, P in cell\n\
+         J1: S => P; cell*k*(S + k)\nS = 1; P = 0; k = 1",
+        &[("k", "per_s")],
+    );
+    assert_has!(r, UN_DIMENSION_MISMATCH);
+}
+
+#[test]
+fn units_adding_different_scales() {
+    let r = run_units(
+        "compartment cell = 1\nspecies S in cell, P in cell\n\
+         J1: S => P; cell*Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 0.5",
+        &[("Vm", "M_per_s"), ("Km", "mM")],
+    );
+    assert_has!(r, UN_SCALE_MISMATCH);
+}
+
+#[test]
+fn units_exp_of_concentration() {
+    let r = run_units(
+        "compartment cell = 1\nspecies S in cell, P in cell\n\
+         J1: S => P; cell*k*S*exp(S)\nS = 1; P = 0; k = 1",
+        &[("k", "per_s")],
+    );
+    assert_has!(r, UN_FUNCTION_ARGUMENT);
+}
+
+#[test]
+fn units_numbers_adapt() {
+    // 1 + S/Ki: the 1 takes the units of S/Ki (dimensionless).
+    let r = run_units(
+        "compartment cell = 1\nspecies S in cell, P in cell\n\
+         J1: S => P; cell*k*S/(1 + S/Ki)\nS = 1; P = 0; k = 1; Ki = 2",
+        &[("k", "per_s"), ("Ki", "M")],
+    );
+    assert!(unit_codes(&r).is_empty(), "{}", show(&r));
+}
+
+#[test]
+fn units_assignment_rule() {
+    let r = run_units(
+        "compartment cell = 1\nspecies S in cell\nx := S*k\nS = 1; k = 1\nx = 0",
+        &[("k", "per_s"), ("x", "M")],
+    );
+    assert_has!(r, UN_ASSIGNMENT);
+}
+
+#[test]
+fn units_coverage_without_units() {
+    let r = run("J1: S => P; k*S\nS = 1; P = 0; k = 1");
+    assert_has!(r, UN_COVERAGE);
+    assert_not!(r, UN_RATE_UNITS);
+}
+
+#[test]
+fn volume_heuristic_without_units() {
+    let r = run("compartment cell = 2\nspecies S in cell, P in cell\nJ1: S => P; k*S\nS = 1; P = 0; k = 1");
+    assert_has!(r, UN_VOLUME_HEURISTIC);
+    let r = run("compartment cell = 2\nspecies S in cell, P in cell\nJ1: S => P; cell*k*S\nS = 1; P = 0; k = 1");
+    assert_not!(r, UN_VOLUME_HEURISTIC);
+    let r = run("compartment cell = 1\nspecies S in cell, P in cell\nJ1: S => P; k*S\nS = 1; P = 0; k = 1");
+    assert_not!(r, UN_VOLUME_HEURISTIC);
+}

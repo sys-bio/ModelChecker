@@ -31,12 +31,61 @@ pub const SY_SHADOWED: &str = "SY005";
 pub const SY_NO_VALUE: &str = "SY006";
 pub const SY_UNSUPPORTED_MATH: &str = "SY007";
 
+pub const UN_RATE_UNITS: &str = "UN001";
+pub const UN_DIMENSION_MISMATCH: &str = "UN002";
+pub const UN_SCALE_MISMATCH: &str = "UN003";
+pub const UN_FUNCTION_ARGUMENT: &str = "UN004";
+pub const UN_MISSING_VOLUME: &str = "UN005";
+pub const UN_VOLUME_HEURISTIC: &str = "UN006";
+pub const UN_ASSIGNMENT: &str = "UN007";
+pub const UN_COVERAGE: &str = "UN008";
+
 pub const SB_READ: &str = "SB001";
 pub const SB_READ_WARNING: &str = "SB002";
 pub const SB_STRUCTURE: &str = "SB003";
 pub const SB_NO_MODEL: &str = "SB004";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: UN_RATE_UNITS,
+        title: "Rate law units wrong",
+        help: "A kinetic law must give extent per time (in Level 2, substance per time), but                the units of this rate law, worked out from its symbols' declared units, are                different.",
+    },
+    Code {
+        code: UN_DIMENSION_MISMATCH,
+        title: "Units do not match",
+        help: "An expression adds, subtracts or compares quantities of different dimensions,                for example a concentration and a rate constant.",
+    },
+    Code {
+        code: UN_SCALE_MISMATCH,
+        title: "Units differ in scale",
+        help: "An expression adds, subtracts or compares quantities of the same kind in                different units, for example mM and M, without converting.",
+    },
+    Code {
+        code: UN_FUNCTION_ARGUMENT,
+        title: "Argument not dimensionless",
+        help: "exp, ln, log, trigonometric functions and exponents need dimensionless                arguments; this one has units.",
+    },
+    Code {
+        code: UN_MISSING_VOLUME,
+        title: "Missing volume factor",
+        help: "The rate law is in concentration per time, short of amount per time by exactly                a compartment's size. Multiply it by the compartment.",
+    },
+    Code {
+        code: UN_VOLUME_HEURISTIC,
+        title: "Possibly missing volume factor",
+        help: "The model's units are not enough to tell, but the rate law uses concentrations                of species in a compartment whose size is not 1 and never mentions a                compartment. Kinetic laws give amount per time, so this is usually missing a                factor of the compartment size.",
+    },
+    Code {
+        code: UN_ASSIGNMENT,
+        title: "Rule units wrong",
+        help: "An assignment rule, rate rule, initial assignment or event assignment gives a                value whose units differ from its variable's (per time, for a rate rule).",
+    },
+    Code {
+        code: UN_COVERAGE,
+        title: "Units not fully checked",
+        help: "How much of the model's units could not be checked, and why: usually                parameters with no declared units.",
+    },
     Code {
         code: SB_READ,
         title: "Cannot read SBML",

@@ -1,9 +1,17 @@
 # Model Checker
 
+## AI Assistance
+
+This software was developed with the assistance of Anthropic's Claude, an AI model, through Claude Code. Stop here if you aren't comfortable with AI assisted code generation.
+
+## About
+
 Static checks for kinetic SBML models. It finds rate laws that divide by zero,
 reactions that can drive species negative, zero-order reactions that are
 probably typos, and undefined or unused symbols. It reports each problem as a
 finding, with a concrete witness where one exists.
+
+**Try it: https://sys-bio.github.io/ModelChecker/**
 
 It runs in the browser (Rust compiled to WebAssembly): the model never leaves
 your computer. There is also a command-line tool for checking whole folders.
@@ -24,6 +32,14 @@ your computer. There is also a command-line tool for checking whole folders.
 | RL009 | warning  | Species used in a rate law but not declared as reactant, product or modifier |
 | RL010 | info     | Modifier not used by the rate law |
 | RL011 | warning  | Reaction with no reactants and no products |
+| UN001 | warning  | Rate law units differ from extent per time |
+| UN002 | warning  | Adds, subtracts or compares quantities of different dimensions |
+| UN003 | warning  | Same, with the same dimensions but a different scale (mM vs M) |
+| UN004 | warning  | exp, ln, trig or an exponent applied to a quantity with units |
+| UN005 | warning  | Rate law in concentration per time: missing a compartment volume factor |
+| UN006 | warning  | Same suspicion without units: concentrations in a compartment of size other than 1, and no compartment in the rate law |
+| UN007 | warning  | Rule or assignment units differ from its variable's |
+| UN008 | info     | What could not be checked (usually parameters without units) |
 | SY001 | error    | Undefined symbol |
 | SY002-SY004 | info | Unused parameter, local parameter, function |
 | SY005 | info     | Local parameter shadows a global |
@@ -48,6 +64,15 @@ your computer. There is also a command-line tool for checking whole folders.
   counterexample is first sought with the other variables between zero and
   their initial values. A failure found only outside that range is reported
   as info, since it is often a part exceeding its total (`ET - ES`).
+- **Units.** Each expression's units are inferred from the declared units
+  of its symbols (SI exponents plus a scale). A species is substance over
+  its compartment's size unless `hasOnlySubstanceUnits`. A parameter without
+  units is unknown, unless an assignment rule sets it, in which case it takes
+  the rule's units. Unknowns make a product unknown, so unit findings arise
+  only where the model declares enough. A bare number takes the units of
+  whatever it is added to. In a product, only small whole numbers and 1/2
+  count as dimensionless; other numbers may hide units (conversion factors,
+  rate constants), as in libSBML.
 - **Conservation.** A witness that empties a whole conserved moiety (found
   from the stoichiometry matrix) is not a reachable state, so it is not used.
 
@@ -85,3 +110,9 @@ If `trunk` fails with `invalid value '1' for '--no-color'`, set
 Pushing to `main` builds and deploys the page to GitHub Pages
 (`.github/workflows/ci.yml`). This needs a one-time setting on GitHub:
 Settings -> Pages -> Source: GitHub Actions.
+
+## Funding
+
+This work was supported by NIH Biomedical Imaging and Bioengineering award
+P41 EB023912 through HMS at the Center for Reproducible Biomedical Modeling,
+[reproduciblebiomodels.org](https://reproduciblebiomodels.org).

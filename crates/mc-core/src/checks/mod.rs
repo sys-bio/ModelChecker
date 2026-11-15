@@ -4,6 +4,7 @@ mod reactions;
 pub mod scope;
 mod singular;
 mod symbols;
+mod units;
 
 use std::collections::{HashMap, HashSet};
 
@@ -47,6 +48,7 @@ pub fn run(model: &Model, level: u32) -> Vec<Finding> {
     symbols::check(&mut ctx);
     singular::check(&mut ctx);
     reactions::check(&mut ctx);
+    units::check(&mut ctx);
     ctx.findings
 }
 
