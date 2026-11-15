@@ -809,3 +809,68 @@ fn jdesigner_model_checks_clean() {
         show(&r)
     );
 }
+
+// ------------------------------------------------- values
+
+#[test]
+fn parameter_roles() {
+    let r = run("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = -0.5");
+    assert!(r.findings.iter().any(|f| f.code == VA_ROLE && f.message.contains("`Km` is added to a concentration")), "{}", show(&r));
+    let r = run("J1: S => P; k*S\nS = 1; P = 0; k = -2");
+    assert!(r.findings.iter().any(|f| f.code == VA_ROLE && f.message.contains("`k` multiplies the rate")), "{}", show(&r));
+    let r = run("J1: S => P; Vm*S^h/(K^h + S^h)\nS = 1; P = 0; Vm = 1; K = 1; h = 0");
+    assert!(r.findings.iter().any(|f| f.code == VA_ROLE && f.message.contains("Hill coefficient")), "{}", show(&r));
+    let r = run("J1: S => P; Vm*S/(Km + S)/(1 + I/Ki)\nspecies I\nS = 1; P = 0; I = 1; Vm = 1; Km = 1; Ki = 0");
+    assert!(r.findings.iter().any(|f| f.code == VA_ROLE && f.message.contains("`Ki` divides a concentration")), "{}", show(&r));
+    let r = run("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 0.5");
+    assert_not!(r, VA_ROLE);
+}
+
+#[test]
+fn reaction_switched_off() {
+    let r = run("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 0; Km = 0.5");
+    assert!(message_of(&r, VA_SWITCHED_OFF).contains("because Vm is zero"), "{}", show(&r));
+    let r = run("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 0.5");
+    assert_not!(r, VA_SWITCHED_OFF);
+}
+
+#[test]
+fn implausible_starting_values() {
+    let mut d = doc("J1: S => P; k*S\nS = 1; P = 0; k = 1");
+    let m = d.model.as_mut().unwrap();
+    m.species[0].initial_concentration = Some(-1.0);
+    m.compartments[0].size = Some(0.0);
+    m.parameters[0].value = Some(1e-30);
+    let r = mc_core::check(&sbml_io::write(&d));
+    let codes: Vec<_> = r.findings.iter().filter(|f| f.code == VA_START).map(|f| f.severity).collect();
+    assert!(codes.contains(&Severity::Warning) && codes.contains(&Severity::Error) && codes.contains(&Severity::Info), "{}", show(&r));
+}
+
+#[test]
+fn wide_spread_of_rate_constants() {
+    let r = run("J1: A => B; k1*A\nJ2: B => C; k2*B\nA = 1; B = 0; C = 0; k1 = 1e-6; k2 = 1e6");
+    assert_has!(r, VA_SPREAD);
+    let r = run("J1: A => B; k1*A\nJ2: B => C; k2*B\nA = 1; B = 0; C = 0; k1 = 0.1; k2 = 10");
+    assert_not!(r, VA_SPREAD);
+}
+
+#[test]
+fn duplicate_reactions() {
+    let r = run("J1: A => B; k*A\nJ2: A => B; k*A\nA = 1; B = 0; k = 1");
+    assert!(message_of(&r, VA_DUPLICATE).contains("same as J1"), "{}", show(&r));
+    let r = run("J1: A => B; k*A\nJ2: A => B; k2*A\nA = 1; B = 0; k = 1; k2 = 2");
+    assert_not!(r, VA_DUPLICATE);
+}
+
+#[test]
+fn conditions_always_or_never_true() {
+    let r = run("J1: S => P; piecewise(k*S, S < 0, 0)\nS = 1; P = 0; k = 1");
+    assert!(message_of(&r, VA_CONDITION).contains("can never be true"), "{}", show(&r));
+    let r = run("J1: S => P; piecewise(k*S, S >= 0, 0)\nS = 1; P = 0; k = 1");
+    assert!(message_of(&r, VA_CONDITION).contains("always true"), "{}", show(&r));
+    // A condition that depends on the state is fine; so is a fixed switch.
+    let r = run("J1: S => P; piecewise(k*S, S > 1, 0)\nS = 1; P = 0; k = 1");
+    assert_not!(r, VA_CONDITION);
+    let r = run("J1: S => P; piecewise(k*S, flag == 1, 0)\nS = 1; P = 0; k = 1; flag = 0");
+    assert_not!(r, VA_CONDITION);
+}

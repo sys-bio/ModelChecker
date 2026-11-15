@@ -12,6 +12,7 @@ mod singular;
 mod symbols;
 mod thermo;
 mod units;
+mod values;
 
 use std::collections::{HashMap, HashSet};
 
@@ -80,6 +81,7 @@ pub fn run(model: &Model, level: u32, namespaces: &[(Option<String>, String)]) -
     thermo::check(&mut ctx);
     network::check(&mut ctx);
     rules::check(&mut ctx);
+    values::check(&mut ctx);
     units::check(&mut ctx);
     sbo::check(&mut ctx);
     ctx.findings

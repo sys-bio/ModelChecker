@@ -50,6 +50,13 @@ pub const SO_NOT_MASS_ACTION: &str = "SO006";
 pub const SO_MASS_ACTION_MISMATCH: &str = "SO007";
 pub const SO_SHAPE_MISMATCH: &str = "SO008";
 
+pub const VA_ROLE: &str = "VA001";
+pub const VA_SWITCHED_OFF: &str = "VA002";
+pub const VA_START: &str = "VA003";
+pub const VA_SPREAD: &str = "VA004";
+pub const VA_DUPLICATE: &str = "VA005";
+pub const VA_CONDITION: &str = "VA006";
+
 pub const MD_NO_LINKS: &str = "MD001";
 pub const MD_MODEL_INFO: &str = "MD002";
 pub const MD_BROKEN_LINK: &str = "MD003";
@@ -89,6 +96,45 @@ pub const SB_NO_MODEL: &str = "SB004";
 pub const SB_LAYOUT: &str = "SB005";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: VA_ROLE,
+        title: "Parameter value does not fit its role",
+        help: "A parameter's value does not fit what it does in the rate law: a negative \
+               rate constant or maximum rate, a saturation or binding constant that is not \
+               positive, or a Hill coefficient that is not positive.",
+    },
+    Code {
+        code: VA_SWITCHED_OFF,
+        title: "Reaction switched off",
+        help: "The rate is zero whatever the state of the model (a zero maximum rate, an \
+               enzyme fixed at zero), so the reaction never runs.",
+    },
+    Code {
+        code: VA_START,
+        title: "Implausible starting value",
+        help: "A species starting at a negative amount, a compartment whose size is not \
+               positive, or values so large or small they suggest a unit has slipped.",
+    },
+    Code {
+        code: VA_SPREAD,
+        title: "Wide range of rate constants",
+        help: "The rate constants span ten or more orders of magnitude. A model with \
+               processes on very different time scales is stiff, and some simulators will be \
+               slow or fail.",
+    },
+    Code {
+        code: VA_DUPLICATE,
+        title: "Duplicate reaction",
+        help: "Two reactions have the same reactants, products and rate law, so the same \
+               process is counted twice.",
+    },
+    Code {
+        code: VA_CONDITION,
+        title: "Condition always or never true",
+        help: "A piecewise condition on the model's state can never be true, or is always \
+               true, because species and time are never negative; part of the expression is \
+               never used.",
+    },
     Code {
         code: MD_NO_LINKS,
         title: "Missing database links",

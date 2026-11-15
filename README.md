@@ -69,6 +69,12 @@ your computer. There is also a command-line tool for checking whole folders.
 | SO008 | warning  | Enzymatic or Hill term that does not fit: no saturation, no species power, no modifier, wrong reactant count |
 | AN001 | error    | The edited Antimony text cannot be read (web page only) |
 | AN002 | warning  | Antimony warning on the edited text, e.g. a name never declared (web page only) |
+| VA001 | warning  | Parameter value that does not fit its role in a rate law: a negative rate constant or maximum rate, a negative saturation constant, a binding constant or Hill coefficient that is not positive |
+| VA002 | info     | Reaction switched off: its rate is zero whatever the state (e.g. Vmax = 0) |
+| VA003 | warning  | Negative starting amounts, compartments of size <= 0 (error); values beyond 1e25 or below 1e-25 (info) |
+| VA004 | info     | Rate constants spanning 10 or more orders of magnitude (a stiff model) |
+| VA005 | warning  | Duplicate reactions: same reactants, products and rate law |
+| VA006 | info     | Piecewise condition on the state that is always or never true because species are never negative |
 | MD001 | info     | Species, reactions or compartments without database links (annotations) |
 | MD002 | info     | Model information missing: creator, date, publication, organism, description |
 | MD003 | warning  | Database link that cannot work: unknown database, or an id not of its database's form (identifiers.org registry) |
@@ -102,6 +108,17 @@ your computer. There is also a command-line tool for checking whole folders.
   counterexample is first sought with the other variables between zero and
   their initial values. A failure found only outside that range is reported
   as info, since it is often a part exceeding its total (`ET - ES`).
+- **Parameter roles.** A parameter's role is read from where it sits in the
+  rate law:
+  - a factor of the rate is a rate constant or maximum rate;
+  - a constant added to a concentration in a denominator (`Km + S`) is a
+    saturation constant;
+  - a constant dividing a concentration (`S/Ki`) is a binding constant;
+  - an exponent on a concentration inside a saturating denominator
+    (`K^n + S^n`) is a Hill coefficient.
+
+  Exponents elsewhere are power-law kinetic orders, which may be negative.
+  Values worked out by rules are not judged.
 - **Network.** Conservation laws come from the left null space of the
   stoichiometry matrix, in amounts, over the species only reactions change.
   The basis is then recombined so the laws read naturally: as few negative
