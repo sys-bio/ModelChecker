@@ -52,6 +52,7 @@ fn main() {
     files.sort();
     let (mut models, mut identity_ok, mut edit_ok, mut edit_tried) = (0, 0, 0, 0);
     let (mut law_ok, mut law_tried) = (0, 0);
+    let (mut sbo_ok, mut sbo_tried, mut units_ok, mut units_tried) = (0, 0, 0, 0);
     let mut failures = 0;
     for f in &files {
         let Ok(xml) = std::fs::read_to_string(f) else { continue };
@@ -76,6 +77,83 @@ fn main() {
                 failures += 1;
                 if failures <= 10 {
                     println!("{name}: unedited text gave errors: {:?}", errs.first().map(|e| &e.message));
+                }
+            }
+        }
+
+        // 4 and 5. One SBO term, and one variable's units, changed.
+        // The element written as `id` (keyword ids carry a trailing `_`):
+        // its units, if it has a units field, and its annotation block.
+        fn find_meta<'m>(
+            m: &'m mut sbml_io::Model,
+            id: &str,
+        ) -> Option<(Option<&'m mut Option<String>>, &'m mut sbml_io::Meta)> {
+            let plain = id.trim_end_matches('_');
+            let is = |x: &str| x == id || x == plain;
+            if let Some(c) = m.compartments.iter_mut().find(|x| is(&x.id)) {
+                return Some((Some(&mut c.units), &mut c.meta));
+            }
+            if let Some(s) = m.species.iter_mut().find(|x| is(&x.id)) {
+                return Some((Some(&mut s.substance_units), &mut s.meta));
+            }
+            if let Some(p) = m.parameters.iter_mut().find(|x| is(&x.id)) {
+                return Some((Some(&mut p.units), &mut p.meta));
+            }
+            if let Some(r) = m.reactions.iter_mut().find(|x| is(&x.id)) {
+                return Some((None, &mut r.meta));
+            }
+            None
+        }
+        if let Some(line) = text.lines().find(|l| l.contains(".sboTerm = ") && !l.trim_start().starts_with("//")) {
+            let (id, rest) = line.trim_start().split_once(".sboTerm = ").unwrap();
+            let n: u32 = rest.split(';').next().unwrap().trim().parse().unwrap();
+            let new_line = line.replacen(&format!("= {n};"), &format!("= {};", n + 1), 1);
+            let mut want = orig.clone();
+            if let Some((_, meta)) = find_meta(want.model.as_mut().unwrap(), id) {
+                sbo_tried += 1;
+                meta.sbo_term = Some(format!("SBO:{:07}", n + 1));
+                match apply_edit(&xml, &text.replacen(line, &new_line, 1)) {
+                    Ok(e) if sbml_io::write(&e.document) == sbml_io::write(&want) => sbo_ok += 1,
+                    Ok(e) => {
+                        failures += 1;
+                        if failures <= 10 {
+                            println!("{name}: editing the SBO term of {id} changed more: {}",
+                                first_difference(want.model.as_ref().unwrap(), e.document.model.as_ref().unwrap()));
+                        }
+                    }
+                    Err(errs) => {
+                        failures += 1;
+                        if failures <= 10 {
+                            println!("{name}: SBO edit gave errors: {:?}", errs.first().map(|e| &e.message));
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(line) = text.lines().find(|l| l.contains(" has ") && !l.trim_start().starts_with("//")) {
+            let (id, unit) = line.trim_start().split_once(" has ").unwrap();
+            let unit = unit.trim_end_matches(';');
+            let new_unit = if unit == "dimensionless" { "second" } else { "dimensionless" };
+            let new_line = line.replacen(&format!(" has {unit};"), &format!(" has {new_unit};"), 1);
+            let mut want = orig.clone();
+            if let Some((Some(u), _)) = find_meta(want.model.as_mut().unwrap(), id) {
+                units_tried += 1;
+                *u = Some(new_unit.to_string());
+                match apply_edit(&xml, &text.replacen(line, &new_line, 1)) {
+                    Ok(e) if sbml_io::write(&e.document) == sbml_io::write(&want) => units_ok += 1,
+                    Ok(e) => {
+                        failures += 1;
+                        if failures <= 10 {
+                            println!("{name}: editing the units of {id} changed more: {}",
+                                first_difference(want.model.as_ref().unwrap(), e.document.model.as_ref().unwrap()));
+                        }
+                    }
+                    Err(errs) => {
+                        failures += 1;
+                        if failures <= 10 {
+                            println!("{name}: units edit gave errors: {:?}", errs.first().map(|e| &e.message));
+                        }
+                    }
                 }
             }
         }
@@ -171,4 +249,6 @@ fn main() {
     println!("unedited text gives back the original exactly: {identity_ok} of {models}");
     println!("changing one value changes only that value:   {edit_ok} of {edit_tried}");
     println!("changing one rate law changes only that law:  {law_ok} of {law_tried}");
+    println!("changing one SBO term changes only that term: {sbo_ok} of {sbo_tried}");
+    println!("changing one unit changes only that unit:     {units_ok} of {units_tried}");
 }

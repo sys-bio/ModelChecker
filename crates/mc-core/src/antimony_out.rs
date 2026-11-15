@@ -366,9 +366,9 @@ pub fn write(model: &Model) -> AntimonyText {
     if let Some(name) = &model.name {
         o.push(&format!("// {name}"));
     }
-    o.push("// Written from SBML by Model Checker. Units, SBO terms and annotations are");
-    o.push("// not shown, but are kept when you edit. Local parameters are written as");
-    o.push("// reaction_name (J1_k1).");
+    o.push("// Written from SBML by Model Checker. Annotations (database links, notes)");
+    o.push("// are not shown here, but are kept when you edit. Local parameters are");
+    o.push("// written as reaction_name (J1_k1).");
     o.blank();
 
     // Function definitions come before the model in Antimony.
@@ -383,6 +383,43 @@ pub fn write(model: &Model) -> AntimonyText {
     }
 
     o.push(&format!("model *{id}()"));
+
+    // Units.
+    let model_units: Vec<String> = [
+        ("substance", &model.substance_units),
+        ("time", &model.time_units),
+        ("volume", &model.volume_units),
+        ("area", &model.area_units),
+        ("length", &model.length_units),
+        ("extent", &model.extent_units),
+    ]
+    .iter()
+    .filter_map(|(what, u)| u.as_ref().map(|u| format!("{what} {u}")))
+    .collect();
+    if !model.unit_definitions.is_empty() || !model_units.is_empty() {
+        o.blank();
+        o.push("  // Units:");
+        for u in &model.unit_definitions {
+            match unit_text(u) {
+                Some(t) => o.push(&format!("  unit {} = {t};", u.id)),
+                // Shown for reading, with why it cannot be edited here.
+                None => o.push(&match unit_body(u) {
+                    Some(body) => format!(
+                        "  // unit {} = {body}  (not editable here: `{}` is a reserved word in Antimony)",
+                        u.id, u.id
+                    ),
+                    None => format!(
+                        "  // unit {} (not editable here: Antimony cannot express its definition)",
+                        u.id
+                    ),
+                }),
+            }
+        }
+        if !model_units.is_empty() {
+            // Antimony has no way to say these; shown for reading.
+            o.push(&format!("  // Model units (not editable here): {}", model_units.join(", ")));
+        }
+    }
 
     // Compartments and species.
     if !model.compartments.is_empty() || !model.species.is_empty() {
@@ -600,12 +637,134 @@ pub fn write(model: &Model) -> AntimonyText {
             }
         }
     }
+
+    // Units of variables: only units that can be named in the text.
+    let defined: HashSet<&str> = model
+        .unit_definitions
+        .iter()
+        .filter(|u| unit_text(u).is_some())
+        .map(|u| u.id.as_str())
+        .collect();
+    let nameable = |u: &str| defined.contains(u) || crate::units::base_unit(u).is_some();
+    let mut has: Vec<String> = Vec::new();
+    for c in &model.compartments {
+        if let Some(u) = c.units.as_deref().filter(|u| nameable(u)) {
+            has.push(format!("  {} has {u};", c.id));
+        }
+    }
+    for s in &model.species {
+        if let Some(u) = s.substance_units.as_deref().filter(|u| nameable(u)) {
+            has.push(format!("  {} has {u};", s.id));
+        }
+    }
+    for p in &model.parameters {
+        if let Some(u) = p.units.as_deref().filter(|u| nameable(u)) {
+            has.push(format!("  {} has {u};", p.id));
+        }
+    }
+    if !has.is_empty() {
+        o.blank();
+        o.push("  // Units of variables:");
+        for l in has {
+            o.push(&l);
+        }
+    }
+
+    // SBO terms. Antimony has none for a rate law apart from its reaction,
+    // so those are shown as comments.
+    let sbo = |meta: &sbml_io::Meta| meta.sbo_term.as_deref().and_then(crate::sbo::parse);
+    let mut terms: Vec<String> = Vec::new();
+    let mut tag = |id: &str, meta: &sbml_io::Meta| {
+        if let Some(t) = sbo(meta) {
+            terms.push(format!("  {id}.sboTerm = {t};{}", sbo_comment(t)));
+        }
+    };
+    for c in &model.compartments {
+        tag(&c.id, &c.meta);
+    }
+    for s in &model.species {
+        tag(&s.id, &s.meta);
+    }
+    for p in &model.parameters {
+        tag(&p.id, &p.meta);
+    }
+    for r in &model.reactions {
+        tag(&r.id, &r.meta);
+    }
+    let rate_laws: Vec<String> = model
+        .reactions
+        .iter()
+        .filter_map(|r| {
+            let t = sbo(&r.kinetic_law.as_ref()?.meta)?;
+            Some(format!("  // {} rate law: {}", r.id, crate::sbo::describe(t)))
+        })
+        .collect();
+    if !terms.is_empty() || !rate_laws.is_empty() {
+        o.blank();
+        o.push("  // SBO terms:");
+        for l in terms {
+            o.push(&l);
+        }
+        if !rate_laws.is_empty() {
+            o.push("  // Rate law SBO terms (not editable here):");
+            for l in rate_laws {
+                o.push(&l);
+            }
+        }
+    }
+
     o.blank();
     o.push("end");
     AntimonyText {
         text: o.text,
         lines: o.lines,
     }
+}
+
+/// `  // a name`, the term's name as a trailing comment.
+fn sbo_comment(t: u32) -> String {
+    match crate::sbo::term(t) {
+        Some(term) => format!("  // {}", term.name),
+        None => String::new(),
+    }
+}
+
+/// A unit definition as Antimony can read it back: each unit as an optional
+/// multiplier, its kind, and an exponent, as in `0.001 mole litre^-1`
+/// (`(multiplier * 10^scale * kind)^exponent` in SBML). `None` if Antimony
+/// could not read it: a unit kind it does not know, or no units at all.
+pub fn unit_text(u: &sbml_io::UnitDefinition) -> Option<String> {
+    if RESERVED.contains(&u.id.as_str()) {
+        return None;
+    }
+    unit_body(u)
+}
+
+/// A unit definition's right-hand side, whatever its id.
+fn unit_body(u: &sbml_io::UnitDefinition) -> Option<String> {
+    if u.units.is_empty() {
+        return None;
+    }
+    let mut parts = Vec::new();
+    for unit in &u.units {
+        if crate::units::base_unit(&unit.kind).is_none() || unit.offset.is_some() {
+            return None;
+        }
+        let m = unit.multiplier.unwrap_or(1.0) * 10f64.powi(unit.scale.unwrap_or(0));
+        let e = unit.exponent.unwrap_or(1.0);
+        let mut s = String::new();
+        if m != 1.0 {
+            s.push_str(&exact(m));
+            s.push(' ');
+        }
+        s.push_str(&unit.kind);
+        if e != 1.0 {
+            s.push('^');
+            s.push_str(&exact(e));
+        }
+        parts.push(s);
+    }
+    Some(parts.join(" "))
 }
 
 impl AntimonyText {

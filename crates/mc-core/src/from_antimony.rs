@@ -233,6 +233,31 @@ mod tests {
     }
 
     #[test]
+    fn units_and_sbo_terms_are_shown_and_editable() {
+        let t = text();
+        for want in [
+            "unit per_s = second^-1;",
+            "k has per_s;",
+            "S.sboTerm = 247;",
+            "J1.sboTerm = 176;",
+            "// J1 rate law: SBO:0000049",
+            "// Model units (not editable here): substance mole, time second, extent mole",
+        ] {
+            assert!(t.contains(want), "missing {want:?} in:\n{t}");
+        }
+        // Change one SBO term: only it changes.
+        let e = apply_edit(XML, &t.replace("S.sboTerm = 247;", "S.sboTerm = 245;")).ok().unwrap();
+        let mut want = sbml_io::read(XML).unwrap().document;
+        want.model.as_mut().unwrap().species[0].meta.sbo_term = Some("SBO:0000245".into());
+        assert_eq!(sbml_io::write(&e.document), sbml_io::write(&want));
+        // Change a parameter's units: only they change.
+        let e = apply_edit(XML, &t.replace("k has per_s;", "k has second;")).ok().unwrap();
+        let mut want = sbml_io::read(XML).unwrap().document;
+        want.model.as_mut().unwrap().parameters[0].units = Some("second".into());
+        assert_eq!(sbml_io::write(&e.document), sbml_io::write(&want));
+    }
+
+    #[test]
     fn local_parameters_survive_editing() {
         let t = text();
         assert!(t.contains("J1_kl = 2;"), "{t}");

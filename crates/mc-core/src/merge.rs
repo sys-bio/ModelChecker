@@ -10,9 +10,10 @@
 //!
 //! For every element (by id), a field is changed in `orig` only if it
 //! differs between `base` and `mine`, which is exactly when the user
-//! changed it. Everything else on the element, and every element the text
-//! cannot express (units, unit definitions, SBO terms, annotations, notes,
-//! names, constraints, layout), is kept as it was. An element missing from
+//! changed it. Everything else on the element, and everything the text
+//! cannot express (annotations, notes, names, model-wide units, rate-law
+//! SBO terms, constraints, layout), is kept as it was. Units and SBO terms
+//! the text does show are edited like any other field. An element missing from
 //! the edited text was deleted by the user; one missing from `base` was
 //! added. An unedited text therefore gives back the original exactly.
 
@@ -45,6 +46,9 @@ pub fn merge(orig: &Document, base: &Model, mine: &Model) -> Document {
         .collect();
     let derived = &derived;
     merge_list(&mut m.function_definitions, &base.function_definitions, &mine.function_definitions, |f, _| f.id.clone(), update_function);
+    merge_list(&mut m.unit_definitions, &base.unit_definitions, &mine.unit_definitions, |u, _| u.id.clone(), |o, b, n| {
+        set(&mut o.units, &b.units, &n.units);
+    });
     merge_list(&mut m.compartments, &base.compartments, &mine.compartments, |c, _| c.id.clone(), |o, b, n| {
         update_compartment(o, b, n, derived.contains(&n.id))
     });
@@ -145,6 +149,8 @@ fn update_compartment(o: &mut Compartment, b: &Compartment, m: &Compartment, der
     }
     set(&mut o.constant, &b.constant, &m.constant);
     set(&mut o.spatial_dimensions, &b.spatial_dimensions, &m.spatial_dimensions);
+    set(&mut o.units, &b.units, &m.units);
+    set(&mut o.meta.sbo_term, &b.meta.sbo_term, &m.meta.sbo_term);
 }
 
 fn update_species(o: &mut Species, b: &Species, m: &Species, derived: bool) {
@@ -160,6 +166,8 @@ fn update_species(o: &mut Species, b: &Species, m: &Species, derived: bool) {
     set(&mut o.boundary_condition, &b.boundary_condition, &m.boundary_condition);
     set(&mut o.constant, &b.constant, &m.constant);
     set(&mut o.has_only_substance_units, &b.has_only_substance_units, &m.has_only_substance_units);
+    set(&mut o.substance_units, &b.substance_units, &m.substance_units);
+    set(&mut o.meta.sbo_term, &b.meta.sbo_term, &m.meta.sbo_term);
 }
 
 fn update_parameter(o: &mut Parameter, b: &Parameter, m: &Parameter, derived: bool) {
@@ -167,6 +175,8 @@ fn update_parameter(o: &mut Parameter, b: &Parameter, m: &Parameter, derived: bo
         set_value(&mut o.value, &b.value, &m.value);
     }
     set(&mut o.constant, &b.constant, &m.constant);
+    set(&mut o.units, &b.units, &m.units);
+    set(&mut o.meta.sbo_term, &b.meta.sbo_term, &m.meta.sbo_term);
 }
 
 fn update_initial_assignment(o: &mut InitialAssignment, b: &InitialAssignment, m: &InitialAssignment) {
@@ -195,6 +205,7 @@ fn update_rule(o: &mut Rule, b: &Rule, m: &Rule) {
 
 fn update_reaction(o: &mut Reaction, b: &Reaction, m: &Reaction) {
     set(&mut o.reversible, &b.reversible, &m.reversible);
+    set(&mut o.meta.sbo_term, &b.meta.sbo_term, &m.meta.sbo_term);
     if refs_differ(&b.reactants, &m.reactants) {
         o.reactants = merge_refs(&o.reactants, &m.reactants);
     }

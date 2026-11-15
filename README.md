@@ -154,15 +154,19 @@ your computer. There is also a command-line tool for checking whole folders.
   file, and **Download SBML** saves the edited model.
 - **Editing never loses anything.** The loaded SBML stays the master copy.
   An edit of the text is merged into it by comparing the edited text with
-  the text as first written: only what you changed is changed. Units, SBO
-  terms, annotations, notes, names and anything else the text does not show
-  are kept, as are untouched elements, byte for byte. Local parameters are
-  written as `J1_k1` and turned back into local parameters, and numbers are
-  written exactly. Tested on all BioModels
+  the text as first written: only what you changed is changed. The text
+  shows unit definitions (`unit mM = 0.001 mole litre^-1`), units of
+  variables (`k1 has per_s`) and SBO terms (`J1.sboTerm = 176`), and these
+  can be edited. Model-wide units, rate-law SBO terms, and units whose id is
+  an Antimony keyword have no Antimony syntax, so they are shown as comments.
+  Annotations, notes and names are not shown. Everything the text does not
+  carry is kept, as are untouched elements, byte for byte. Local parameters
+  are written as `J1_k1` and turned back into local parameters, and numbers
+  are written exactly. Tested on all BioModels
   (`cargo run --release -p mc-core --features antimony --example edit_roundtrip -- FOLDER`):
-  an unedited text gives back the original exactly (1075 of 1075), and
-  changing one value or one rate law changes only that (928 of 928, 953 of
-  953). Ids that are Antimony keywords, such as a compartment called
+  an unedited text gives back the original exactly (1075 of 1075). Changing
+  one value, one rate law, one SBO term or one unit changes only that (928 of
+  928, 953 of 953, 335 of 335, 328 of 328). Ids that are Antimony keywords, such as a compartment called
   `compartment`, are written with a trailing `_`. Every BioModels model
   converts to Antimony that the antimony crate parses
   (`cargo run --release -p mc-core --example ant_roundtrip -- FOLDER`).
