@@ -1,6 +1,7 @@
 //! The checks, one module per family.
 
 mod annotations;
+mod features;
 mod mass_action;
 mod network;
 mod poly;
@@ -74,6 +75,7 @@ pub fn run(model: &Model, level: u32, namespaces: &[(Option<String>, String)]) -
         findings: Vec::new(),
     };
     annotations::check(&mut ctx, namespaces);
+    features::check(&mut ctx, namespaces);
     symbols::check(&mut ctx);
     singular::check(&mut ctx);
     reactions::check(&mut ctx);

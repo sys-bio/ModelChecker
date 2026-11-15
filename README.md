@@ -69,6 +69,12 @@ your computer. There is also a command-line tool for checking whole folders.
 | SO008 | warning  | Enzymatic or Hill term that does not fit: no saturation, no species power, no modifier, wrong reactant count |
 | AN001 | error    | The edited Antimony text cannot be read (web page only) |
 | AN002 | warning  | Antimony warning on the edited text, e.g. a name never declared (web page only) |
+| FT001 | warning  | Reactions marked `fast`, which most simulators treat as ordinary reactions |
+| FT002 | info     | Delays (`delay(x, t)`): a delay differential equation many simulators cannot solve |
+| FT003 | info     | `rateOf`, `min`, `max`, `rem`, `quotient`, `implies`: SBML L3V2 mathematics older tools cannot read |
+| FT004 | warning/info | SBML packages that change the model's meaning: `comp` (warning: only the top model is checked); `distrib`, `arrays`, `multi`, `spatial`, `qual` (info) |
+| FT005 | info     | Variable stoichiometry (given by maths, or set by rules or events) |
+| FT006 | info     | Constraints, which few simulators check |
 | VA001 | warning  | Parameter value that does not fit its role in a rate law: a negative rate constant or maximum rate, a negative saturation constant, a binding constant or Hill coefficient that is not positive |
 | VA002 | info     | Reaction switched off: its rate is zero whatever the state (e.g. Vmax = 0) |
 | VA003 | warning  | Negative starting amounts, compartments of size <= 0 (error); values beyond 1e25 or below 1e-25 (info) |

@@ -50,6 +50,13 @@ pub const SO_NOT_MASS_ACTION: &str = "SO006";
 pub const SO_MASS_ACTION_MISMATCH: &str = "SO007";
 pub const SO_SHAPE_MISMATCH: &str = "SO008";
 
+pub const FT_FAST: &str = "FT001";
+pub const FT_DELAY: &str = "FT002";
+pub const FT_NEWER_MATH: &str = "FT003";
+pub const FT_PACKAGE: &str = "FT004";
+pub const FT_VARIABLE_STOICHIOMETRY: &str = "FT005";
+pub const FT_CONSTRAINT: &str = "FT006";
+
 pub const VA_ROLE: &str = "VA001";
 pub const VA_SWITCHED_OFF: &str = "VA002";
 pub const VA_START: &str = "VA003";
@@ -96,6 +103,44 @@ pub const SB_NO_MODEL: &str = "SB004";
 pub const SB_LAYOUT: &str = "SB005";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: FT_FAST,
+        title: "Fast reactions",
+        help: "Reactions marked fast. Most simulators ignore the mark and treat them as \
+               ordinary reactions, so results differ between tools; SBML Level 3 Version 2 \
+               removed it.",
+    },
+    Code {
+        code: FT_DELAY,
+        title: "Delays",
+        help: "The model uses delay(x, t), making it a delay differential equation, which \
+               many simulators cannot solve.",
+    },
+    Code {
+        code: FT_NEWER_MATH,
+        title: "Newer SBML mathematics",
+        help: "rateOf, min, max, rem, quotient or implies: mathematics added in SBML Level 3 \
+               Version 2, which tools that read only older versions cannot read.",
+    },
+    Code {
+        code: FT_PACKAGE,
+        title: "SBML package in use",
+        help: "The model uses an SBML package that changes what it means (comp, distrib, \
+               arrays, multi, spatial, qual). This checker does not analyse it, and many \
+               simulators do not support it.",
+    },
+    Code {
+        code: FT_VARIABLE_STOICHIOMETRY,
+        title: "Variable stoichiometry",
+        help: "Stoichiometries given by mathematics or changed by rules or events. Some \
+               simulators do not support this.",
+    },
+    Code {
+        code: FT_CONSTRAINT,
+        title: "Constraints",
+        help: "The model has constraints, conditions that should hold during a simulation. \
+               Few simulators check them.",
+    },
     Code {
         code: VA_ROLE,
         title: "Parameter value does not fit its role",

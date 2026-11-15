@@ -874,3 +874,55 @@ fn conditions_always_or_never_true() {
     let r = run("J1: S => P; piecewise(k*S, flag == 1, 0)\nS = 1; P = 0; k = 1; flag = 0");
     assert_not!(r, VA_CONDITION);
 }
+
+// ------------------------------------------------- unsupported features
+
+#[test]
+fn fast_reactions_and_constraints() {
+    let mut d = doc("J1: S => P; k*S\nS = 1; P = 0; k = 1");
+    let m = d.model.as_mut().unwrap();
+    m.reactions[0].fast = Some(true);
+    m.constraints.push(sbml_io::Constraint {
+        math: Some(sbml_io::Math::Apply(sbml_io::Op::Geq, vec![sbml_io::Math::ident("S"), sbml_io::Math::int(0)])),
+        ..Default::default()
+    });
+    // Fast reactions exist up to Level 3 Version 1.
+    d.version = 1;
+    let r = mc_core::check(&sbml_io::write(&d));
+    assert_has!(r, FT_FAST);
+    assert_has!(r, FT_CONSTRAINT);
+    let r = run("J1: S => P; k*S\nS = 1; P = 0; k = 1");
+    assert_not!(r, FT_FAST);
+    assert_not!(r, FT_CONSTRAINT);
+}
+
+#[test]
+fn delays_and_newer_maths() {
+    let r = run("J1: S => P; k*delay(S, 2)\nS = 1; P = 0; k = 1");
+    assert_has!(r, FT_DELAY);
+    let r = run("J1: S => P; k*max(S, 0.1)\nS = 1; P = 0; k = 1");
+    assert!(message_of(&r, FT_NEWER_MATH).contains("`max`"), "{}", show(&r));
+}
+
+#[test]
+fn variable_stoichiometry() {
+    let mut d = doc("J1: S => P; k*S\nS = 1; P = 0; k = 1");
+    let m = d.model.as_mut().unwrap();
+    m.reactions[0].reactants[0].id = Some("sr1".into());
+    m.rules.push(sbml_io::Rule::Assignment {
+        variable: "sr1".into(),
+        math: Some(sbml_io::Math::int(2)),
+        meta: Default::default(),
+    });
+    let r = mc_core::check(&sbml_io::write(&d));
+    assert_has!(r, FT_VARIABLE_STOICHIOMETRY);
+}
+
+#[test]
+fn comp_package() {
+    let mut d = doc("J1: S => P; k*S\nS = 1; P = 0; k = 1");
+    d.namespaces.push((Some("comp".into()), "http://www.sbml.org/sbml/level3/version1/comp/version1".into()));
+    let r = mc_core::check(&sbml_io::write(&d));
+    let f = r.findings.iter().find(|f| f.code == FT_PACKAGE).unwrap_or_else(|| panic!("{}", show(&r)));
+    assert_eq!(f.severity, Severity::Warning);
+}
