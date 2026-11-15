@@ -591,3 +591,54 @@ fn wegscheider_ignores_paths_between_boundaries() {
     );
     assert_not!(r, TD_WEGSCHEIDER);
 }
+
+// ------------------------------------------------- network
+
+#[test]
+fn only_produced_and_only_consumed() {
+    let r = run("J1: S => P; k*S\nS = 10; P = 0; k = 1");
+    assert!(r.findings.iter().any(|f| f.code == NW_ONLY_PRODUCED && f.element == mc_core::Element::Species("P".into())), "{}", show(&r));
+    assert!(r.findings.iter().any(|f| f.code == NW_ONLY_CONSUMED && f.element == mc_core::Element::Species("S".into())), "{}", show(&r));
+}
+
+#[test]
+fn conserved_total() {
+    let r = run(
+        "J1: E + S -> ES; k1*E*S - k2*ES\nJ2: ES => E + P; k3*ES\n\
+         E = 1; S = 10; ES = 0; P = 0; k1 = 1; k2 = 1; k3 = 1",
+    );
+    let f = r.findings.iter().find(|f| f.code == NW_CONSERVED).unwrap_or_else(|| panic!("{}", show(&r)));
+    // E + ES is conserved with total 1; S + ES + P with total 10.
+    assert!(f.message.contains("= 1\n") || f.message.ends_with("= 1"), "{}", f.message);
+    assert!(f.message.contains("= 10"), "{}", f.message);
+}
+
+#[test]
+fn disconnected_network() {
+    let r = run("J1: A => B; k*A\nJ2: C => D; k*C\nA = 1; B = 0; C = 1; D = 0; k = 1");
+    assert_has!(r, NW_DISCONNECTED);
+    let r = run("J1: A => B; k*A\nJ2: B => C; k*B\nA = 1; B = 0; C = 0; k = 1");
+    assert_not!(r, NW_DISCONNECTED);
+}
+
+#[test]
+fn species_that_can_never_appear() {
+    // X is autocatalytic and starts at zero: it can never appear.
+    let r = run("J1: A + X => 2 X; k*A*X\nJ2: X => ; d*X\nA = 10; X = 0; k = 1; d = 0.1");
+    let f = r.findings.iter().find(|f| f.code == NW_NEVER_PRESENT).unwrap_or_else(|| panic!("{}", show(&r)));
+    assert!(f.message.starts_with("X starts at zero"), "{}", f.message);
+    // With a seed of X it can.
+    let r = run("J1: A + X => 2 X; k*A*X\nJ2: X => ; d*X\nA = 10; X = 0.01; k = 1; d = 0.1");
+    assert_not!(r, NW_NEVER_PRESENT);
+    // A chain from a source can always fill.
+    let r = run("J0: => A; v\nJ1: A => B; k*A\nA = 0; B = 0; v = 1; k = 1");
+    assert_not!(r, NW_NEVER_PRESENT);
+}
+
+#[test]
+fn unused_species_and_no_effect_reaction() {
+    let r = run("species Z\nJ1: S => P; k*S\nS = 1; P = 0; Z = 1; k = 1");
+    assert_has!(r, NW_UNUSED_SPECIES);
+    let r = run("J1: $X => $Y; k*X\nX = 1; Y = 0; k = 1");
+    assert_has!(r, NW_NO_EFFECT);
+}

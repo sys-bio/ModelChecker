@@ -1,6 +1,7 @@
 //! The checks, one module per family.
 
 mod mass_action;
+mod network;
 mod poly;
 mod reactions;
 mod sbo;
@@ -56,6 +57,7 @@ pub fn run(model: &Model, level: u32) -> Vec<Finding> {
     reactions::check(&mut ctx);
     mass_action::check(&mut ctx);
     thermo::check(&mut ctx);
+    network::check(&mut ctx);
     units::check(&mut ctx);
     sbo::check(&mut ctx);
     ctx.findings

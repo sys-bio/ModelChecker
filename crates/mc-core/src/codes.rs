@@ -50,6 +50,14 @@ pub const SO_NOT_MASS_ACTION: &str = "SO006";
 pub const SO_MASS_ACTION_MISMATCH: &str = "SO007";
 pub const SO_SHAPE_MISMATCH: &str = "SO008";
 
+pub const NW_ONLY_PRODUCED: &str = "NW001";
+pub const NW_ONLY_CONSUMED: &str = "NW002";
+pub const NW_UNUSED_SPECIES: &str = "NW003";
+pub const NW_DISCONNECTED: &str = "NW004";
+pub const NW_CONSERVED: &str = "NW005";
+pub const NW_NEVER_PRESENT: &str = "NW006";
+pub const NW_NO_EFFECT: &str = "NW007";
+
 pub const TD_HALDANE: &str = "TD001";
 pub const TD_WEGSCHEIDER: &str = "TD002";
 
@@ -62,6 +70,50 @@ pub const SB_STRUCTURE: &str = "SB003";
 pub const SB_NO_MODEL: &str = "SB004";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: NW_ONLY_PRODUCED,
+        title: "Only produced",
+        help: "No reaction consumes the species, so it accumulates. Often intended (a model \
+               output); worth a look if other parts of the model use it.",
+    },
+    Code {
+        code: NW_ONLY_CONSUMED,
+        title: "Only consumed",
+        help: "No reaction produces the species, so it runs down. Often intended (a substrate \
+               pool).",
+    },
+    Code {
+        code: NW_UNUSED_SPECIES,
+        title: "Unused species",
+        help: "The species takes part in no reaction, rule or event, and no expression uses it.",
+    },
+    Code {
+        code: NW_DISCONNECTED,
+        title: "Disconnected network",
+        help: "The reactions fall into separate parts that never affect each other: no shared \
+               species, and no rate law, rule or event linking them. Sometimes intended; \
+               sometimes a missing link or a misspelt species.",
+    },
+    Code {
+        code: NW_CONSERVED,
+        title: "Conserved totals",
+        help: "Conservation laws: weighted sums of species that no reaction changes, from the \
+               left null space of the stoichiometry matrix. Useful to know; steady-state \
+               solvers need them.",
+    },
+    Code {
+        code: NW_NEVER_PRESENT,
+        title: "Species that can never appear",
+        help: "These species start at zero, and every reaction that would produce one of them \
+               needs one of them as a reactant (an empty siphon), so they stay at zero and the \
+               reactions consuming them never run. Usually a missing initial value.",
+    },
+    Code {
+        code: NW_NO_EFFECT,
+        title: "Reaction changes nothing",
+        help: "The reaction changes no variable species: all its species are boundary or \
+               constant, or appear equally on both sides. It only carries a flux.",
+    },
     Code {
         code: TD_HALDANE,
         title: "Equilibrium not constant (Haldane)",

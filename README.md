@@ -33,6 +33,13 @@ your computer. There is also a command-line tool for checking whole folders.
 | RL010 | info     | Modifier not used by the rate law |
 | RL011 | warning  | Reaction with no reactants and no products |
 | RL013 | warning  | Mass-action rate law whose powers differ from the stoichiometry (e.g. `k*A` for `2 A -> B`) |
+| NW001 | info     | Species only produced, never consumed (accumulates) |
+| NW002 | info     | Species only consumed, never produced (runs down) |
+| NW003 | info     | Species in no reaction, rule or event, and used nowhere |
+| NW004 | info     | Network in separate parts that never affect each other |
+| NW005 | info     | Conserved totals (conservation laws), e.g. `MKKK + MKKK_P = 100` |
+| NW006 | warning  | Species that start at zero and can never be made (an empty siphon), and the reactions that therefore never run |
+| NW007 | info     | Reaction that changes no variable species (only carries a flux) |
 | TD001 | warning  | Reversible rate law whose equilibrium is not a constant mass-action ratio (Haldane), e.g. shifted by a modifier |
 | TD002 | warning  | Cycle of reversible reactions whose equilibrium constants do not multiply to 1 (Wegscheider) |
 | UN001 | warning  | Rate law units differ from extent per time |
@@ -77,6 +84,17 @@ your computer. There is also a command-line tool for checking whole folders.
   counterexample is first sought with the other variables between zero and
   their initial values. A failure found only outside that range is reported
   as info, since it is often a part exceeding its total (`ET - ES`).
+- **Network.** Conservation laws come from the left null space of the
+  stoichiometry matrix, in amounts, over the species only reactions change.
+  The basis is then recombined so the laws read naturally: as few negative
+  coefficients and species as possible, so `S + ES + P` rather than
+  `-E + S + P`. Species that can never appear are found by a fixed point.
+  Start with every species at zero, then free any species that a reaction
+  can make while the remaining ones are still zero. Whether a reaction can
+  run, and which way, is asked of its rate law (by interval arithmetic), so a
+  rate law that ignores its reactant still runs. Whatever is left can never
+  become non-zero. When many species share a network finding, they are
+  listed in one finding for the model.
 - **Thermodynamics.** Many published models are not thermodynamically
   consistent, often harmlessly, so these are warnings. For each reversible
   rate law that depends on both its reactants and its products, the
