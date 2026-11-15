@@ -1,0 +1,24 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/sbml-io",
+    "crates/antimony",
+    "crates/mc-core",
+    "crates/mc-cli",
+    "crates/mc-web",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+sbml-io = { path = "crates/sbml-io" }
+antimony-rs = { path = "crates/antimony" }
+mc-core = { path = "crates/mc-core" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"

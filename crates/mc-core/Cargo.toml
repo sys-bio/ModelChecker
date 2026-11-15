@@ -1,0 +1,14 @@
+[package]
+name = "mc-core"
+description = "Static checks for kinetic SBML models: rate law singularities, positivity, zero-order reactions, symbol use."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+# No I/O and no platform code: everything here must build for wasm32.
+[dependencies]
+sbml-io.workspace = true
+
+# Tests write their models in Antimony and convert them to SBML.
+[dev-dependencies]
+antimony-rs = { workspace = true, features = ["sbml"] }

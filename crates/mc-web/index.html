@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Model Checker</title>
+<meta name="description" content="Static checks for kinetic SBML models: rate law singularities, species that can go negative, zero-order reactions, undefined and unused symbols. Runs entirely in your browser.">
+
+<!-- Trunk builds this crate to WebAssembly and injects the loader, which
+     sets window.wasmBindings and fires TrunkApplicationStarted. Build with
+     `trunk build --release --public-url ./` from this folder. -->
+<link data-trunk rel="rust" data-wasm-opt="z" />
+<link data-trunk rel="copy-file" href="example.xml" />
+
+<style>
+:root {
+  --bg: #f7f8fa;
+  --panel: #ffffff;
+  --text: #1d2330;
+  --muted: #5f6b7a;
+  --border: #dde2ea;
+  --accent: #2f6fde;
+  --error: #c62f2f;
+  --error-bg: #fdecec;
+  --warning: #a86200;
+  --warning-bg: #fff4e0;
+  --info: #3a6e9e;
+  --info-bg: #e8f1fa;
+  --code-bg: #f0f2f6;
+  --drop: #eef3fd;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14171c;
+    --panel: #1c2027;
+    --text: #e3e7ee;
+    --muted: #98a2b1;
+    --border: #2e3440;
+    --accent: #6c9cf0;
+    --error: #f07a7a;
+    --error-bg: #3a1f22;
+    --warning: #e8b050;
+    --warning-bg: #3a2e1a;
+    --info: #85b4e0;
+    --info-bg: #1d2b3a;
+    --code-bg: #262b34;
+    --drop: #1d2636;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
+header p { margin: 0; color: var(--muted); }
+code, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; }
+
+#drop {
+  margin-top: 20px;
+  border: 2px dashed var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 28px 16px;
+  text-align: center;
+  transition: background 0.15s, border-color 0.15s;
+}
+#drop.over { background: var(--drop); border-color: var(--accent); }
+#drop p { margin: 0 0 12px; }
+button, .button {
+  font: inherit;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+}
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button:disabled { opacity: 0.5; cursor: default; }
+.privacy { margin-top: 10px; font-size: 13px; color: var(--muted); }
+
+#status { margin: 16px 0 0; color: var(--muted); min-height: 1.5em; }
+#status.bad { color: var(--error); }
+
+#results { display: none; margin-top: 8px; }
+.model-line { margin: 0 0 12px; }
+.model-line strong { font-size: 17px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--panel); cursor: pointer; user-select: none; font-size: 14px;
+}
+.chip input { margin: 0; }
+.chip .n { font-weight: 600; }
+.chip.error .n { color: var(--error); }
+.chip.warning .n { color: var(--warning); }
+.chip.info .n { color: var(--info); }
+.spacer { flex: 1; }
+select, input[type=search] {
+  font: inherit; padding: 5px 8px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+}
+
+.finding {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+.finding.error { border-left-color: var(--error); }
+.finding.warning { border-left-color: var(--warning); }
+.finding.info { border-left-color: var(--info); }
+.f-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.sev {
+  font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 1px 7px; border-radius: 4px;
+}
+.sev.error { color: var(--error); background: var(--error-bg); }
+.sev.warning { color: var(--warning); background: var(--warning-bg); }
+.sev.info { color: var(--info); background: var(--info-bg); }
+.f-code { color: var(--muted); }
+.f-title { font-weight: 600; }
+.f-el { color: var(--muted); }
+.f-el code { color: var(--text); }
+.f-msg { margin: 6px 0 0; white-space: pre-line; overflow-wrap: anywhere; }
+.f-expr, .f-wit {
+  margin-top: 6px; padding: 6px 10px; border-radius: 6px; background: var(--code-bg);
+  overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.f-wit::before { content: "Witness: "; color: var(--muted); font-family: system-ui, sans-serif; }
+.empty { padding: 20px; text-align: center; color: var(--muted); }
+
+details.help { margin-top: 32px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; }
+details.help summary { cursor: pointer; font-weight: 600; }
+details.help table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+details.help td { border-top: 1px solid var(--border); padding: 6px 8px; vertical-align: top; }
+details.help td:first-child { white-space: nowrap; }
+footer { margin-top: 32px; color: var(--muted); font-size: 13px; }
+footer a { color: var(--accent); }
+@media (max-width: 600px) {
+  header h1 { font-size: 22px; }
+  .spacer { display: none; }
+}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Model Checker</h1>
+    <p>Static checks for kinetic SBML models: singular rate laws, species that can go negative,
+       zero-order reactions, undefined and unused symbols.</p>
+  </header>
+
+  <section id="drop">
+    <p>Drop an SBML file here, or</p>
+    <button class="primary" id="pick" disabled>Choose file</button>
+    <button id="example" disabled>Try an example</button>
+    <input type="file" id="file" accept=".xml,.sbml" hidden>
+    <div class="privacy">The model never leaves your computer: all checks run in your browser.</div>
+  </section>
+
+  <div id="status">Loading the checker...</div>
+
+  <section id="results">
+    <p class="model-line"><strong id="model-name"></strong> <span id="model-meta" class="f-code"></span></p>
+    <div class="chips">
+      <label class="chip error"><input type="checkbox" data-sev="error" checked> <span class="n" id="n-error">0</span> errors</label>
+      <label class="chip warning"><input type="checkbox" data-sev="warning" checked> <span class="n" id="n-warning">0</span> warnings</label>
+      <label class="chip info"><input type="checkbox" data-sev="info"> <span class="n" id="n-info">0</span> info</label>
+      <span class="spacer"></span>
+      <select id="code-filter" aria-label="Filter by check"><option value="">All checks</option></select>
+      <input type="search" id="text-filter" placeholder="Filter by id or text" aria-label="Filter by text">
+      <button id="save">Save JSON</button>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <details class="help">
+    <summary>What is checked</summary>
+    <p>Species are assumed to be non-negative concentrations (unless they start negative), parameters
+       fixed at their values, and function definitions and assignment rules are expanded into the rate
+       laws that use them. Each rate law is analysed with interval arithmetic over all such states, then
+       searched for concrete counterexamples, which are shown as witnesses. States that would empty a
+       conserved moiety are excluded. The <code>reversible</code> attribute is ignored: the rate law
+       alone decides which way a reaction can run.</p>
+    <table id="codes"></table>
+  </details>
+
+  <footer>
+    Model Checker <span id="version"></span>. Source on
+    <a href="https://github.com/sys-bio/ModelChecker">GitHub</a>.
+  </footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  let api = null;
+  let report = null;
+  let fileName = "";
+
+  const $ = (id) => document.getElementById(id);
+  const status = (text, bad) => {
+    $("status").textContent = text;
+    $("status").className = bad ? "bad" : "";
+  };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function ready(bindings) {
+    if (api) return;
+    api = bindings;
+    $("pick").disabled = false;
+    $("example").disabled = false;
+    $("version").textContent = api.version();
+    status("Ready. Choose an SBML file (Level 2 or 3).");
+    const codes = JSON.parse(api.finding_codes());
+    $("codes").innerHTML = codes.map((c) =>
+      `<tr><td><code>${esc(c.code)}</code></td><td><strong>${esc(c.title)}</strong><br>${esc(c.help)}</td></tr>`
+    ).join("");
+  }
+  if (window.wasmBindings) ready(window.wasmBindings);
+  addEventListener("TrunkApplicationStarted", () => ready(window.wasmBindings));
+
+  function run(text, name) {
+    fileName = name;
+    status("Checking " + name + "...");
+    // Let the status paint before the (synchronous) check runs.
+    setTimeout(() => {
+      const t0 = performance.now();
+      try {
+        report = JSON.parse(api.check_sbml(text));
+      } catch (e) {
+        status("The checker failed on this file: " + e, true);
+        return;
+      }
+      const ms = Math.round(performance.now() - t0);
+      status("Checked " + name + " in " + ms + " ms.");
+      show();
+    }, 10);
+  }
+
+  function show() {
+    $("results").style.display = "block";
+    const name = report.modelName || report.modelId || fileName;
+    $("model-name").textContent = name;
+    $("model-meta").textContent = report.level
+      ? `SBML Level ${report.level} Version ${report.version}` + (report.modelId && report.modelId !== name ? ` - ${report.modelId}` : "")
+      : "";
+    for (const s of ["error", "warning", "info"]) {
+      $("n-" + s).textContent = report.findings.filter((f) => f.severity === s).length;
+    }
+    const codes = [...new Map(report.findings.map((f) => [f.code, f.title])).entries()].sort();
+    const current = $("code-filter").value;
+    $("code-filter").innerHTML = `<option value="">All checks</option>` +
+      codes.map(([c, t]) => `<option value="${esc(c)}">${esc(c)} ${esc(t)}</option>`).join("");
+    if (codes.some(([c]) => c === current)) $("code-filter").value = current;
+    render();
+  }
+
+  function render() {
+    const sev = new Set([...document.querySelectorAll("[data-sev]")]
+      .filter((c) => c.checked).map((c) => c.dataset.sev));
+    const code = $("code-filter").value;
+    const text = $("text-filter").value.trim().toLowerCase();
+    const shown = report.findings.filter((f) =>
+      sev.has(f.severity) && (!code || f.code === code) &&
+      (!text || (f.id + " " + f.message + " " + (f.witness || "")).toLowerCase().includes(text)));
+    if (!shown.length) {
+      $("list").innerHTML = report.findings.length
+        ? `<div class="empty">No findings match the filters.</div>`
+        : `<div class="empty">No findings. The model passed every check.</div>`;
+      return;
+    }
+    $("list").innerHTML = shown.map((f) => {
+      // The message's last line is the expression, when it has one.
+      const lines = f.message.split("\n");
+      let expr = "";
+      const last = lines[lines.length - 1];
+      if (lines.length > 1 && /^(Rate law|Expression): /.test(last)) {
+        expr = last.replace(/^(Rate law|Expression): /, "");
+        lines.pop();
+      }
+      const el = f.kind === "model" ? "model" : `${esc(f.kind)} <code>${esc(f.id)}</code>`;
+      return `<div class="finding ${f.severity}">
+        <div class="f-head"><span class="sev ${f.severity}">${f.severity}</span>
+          <span class="f-title">${esc(f.title)}</span>
+          <span class="f-code mono">${esc(f.code)}</span>
+          <span class="f-el">${el}</span></div>
+        <div class="f-msg">${esc(lines.join("\n"))}</div>
+        ${expr ? `<div class="f-expr mono">${esc(expr)}</div>` : ""}
+        ${f.witness ? `<div class="f-wit mono">${esc(f.witness)}</div>` : ""}
+      </div>`;
+    }).join("");
+  }
+
+  function readFile(file) {
+    if (!api || !file) return;
+    file.text().then((t) => run(t, file.name), (e) => status("Cannot read the file: " + e, true));
+  }
+
+  $("pick").onclick = () => $("file").click();
+  $("file").onchange = (e) => readFile(e.target.files[0]);
+  $("example").onclick = () => {
+    fetch("example.xml").then((r) => r.ok ? r.text() : Promise.reject(r.status))
+      .then((t) => run(t, "example.xml"), (e) => status("Cannot load the example: " + e, true));
+  };
+  const drop = $("drop");
+  drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", (e) => {
+    e.preventDefault();
+    drop.classList.remove("over");
+    readFile(e.dataTransfer.files[0]);
+  });
+  document.querySelectorAll("[data-sev]").forEach((c) => c.onchange = render);
+  $("code-filter").onchange = render;
+  $("text-filter").oninput = render;
+  $("save").onclick = () => {
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName.replace(/\.[^.]*$/, "") + "-findings.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+})();
+</script>
+</body>
+</html>

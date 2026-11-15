@@ -1,0 +1,28 @@
+// A small pathway with one problem of each kind the checker looks for.
+model example
+  compartment cell = 1
+  species S1 in cell, S2 in cell, S3 in cell, S4 in cell, E in cell, X in cell
+
+  // Fine: Michaelis-Menten.
+  J1: S1 => S2; Vm*S1/(Km + S1)
+
+  // Zero order: the rate does not depend on S2, a likely typo.
+  J2: S2 => S3; k2
+
+  // Divides by (S3 - S4), which is zero when both are zero.
+  J3: S3 -> S4; k3*S3/(S3 - S4)
+
+  // With S4 = 0 the rate is still positive (k4*E), so S4 goes negative.
+  J4: S4 => ; k4*(S4 + E)
+
+  // Fine: reversible mass action.
+  J5: X -> S1; kf*X - kr*S1
+
+  // Singular at the start: Kd is zero.
+  J6: S1 => X; k6*S1/Kd
+
+  S1 = 10; S2 = 0; S3 = 0; S4 = 0; E = 1; X = 5
+  Vm = 2; Km = 0.5; k2 = 1; k3 = 0.3; k4 = 0.1
+  kf = 0.2; kr = 0.1; k6 = 0.05; Kd = 0
+  unused = 42
+end
