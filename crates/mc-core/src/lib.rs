@@ -30,6 +30,8 @@ pub mod fmt;
 pub mod json;
 pub mod moiety;
 pub mod sample;
+pub mod sbo;
+pub mod sbo_data;
 pub mod units;
 pub mod value;
 pub mod view;

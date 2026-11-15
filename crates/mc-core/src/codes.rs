@@ -40,12 +40,74 @@ pub const UN_VOLUME_HEURISTIC: &str = "UN006";
 pub const UN_ASSIGNMENT: &str = "UN007";
 pub const UN_COVERAGE: &str = "UN008";
 
+pub const SO_UNKNOWN: &str = "SO001";
+pub const SO_OBSOLETE: &str = "SO002";
+pub const SO_WRONG_BRANCH: &str = "SO003";
+pub const SO_IRREVERSIBLE_NEGATIVE: &str = "SO004";
+pub const SO_REVERSIBLE_NEVER_NEGATIVE: &str = "SO005";
+pub const SO_NOT_MASS_ACTION: &str = "SO006";
+pub const SO_MASS_ACTION_MISMATCH: &str = "SO007";
+pub const SO_SHAPE_MISMATCH: &str = "SO008";
+
 pub const SB_READ: &str = "SB001";
 pub const SB_READ_WARNING: &str = "SB002";
 pub const SB_STRUCTURE: &str = "SB003";
 pub const SB_NO_MODEL: &str = "SB004";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: SO_UNKNOWN,
+        title: "Unknown SBO term",
+        help: "The sboTerm is not a valid SBO id, or not a term in the Systems Biology \
+               Ontology.",
+    },
+    Code {
+        code: SO_OBSOLETE,
+        title: "Obsolete SBO term",
+        help: "The SBO term has been made obsolete in the ontology; a current term should be \
+               used instead.",
+    },
+    Code {
+        code: SO_WRONG_BRANCH,
+        title: "SBO term of the wrong kind",
+        help: "Each SBML element takes SBO terms from one branch of the ontology: rate laws \
+               for kinetic laws, material entities for species and compartments, \
+               participant roles for reactants and products, and so on. This term is from \
+               another branch.",
+    },
+    Code {
+        code: SO_IRREVERSIBLE_NEGATIVE,
+        title: "Irreversible term, negative rate",
+        help: "The kinetic law's SBO term describes an irreversible rate law, but the rate \
+               can be negative, so the reaction can run backwards.",
+    },
+    Code {
+        code: SO_REVERSIBLE_NEVER_NEGATIVE,
+        title: "Reversible term, rate never negative",
+        help: "The kinetic law's SBO term describes a reversible rate law, but the rate can \
+               never be negative.",
+    },
+    Code {
+        code: SO_NOT_MASS_ACTION,
+        title: "Mass-action term, not mass action",
+        help: "The kinetic law's SBO term is a mass-action rate law, but the rate law is not \
+               a sum of terms that are each a constant times powers of species.",
+    },
+    Code {
+        code: SO_MASS_ACTION_MISMATCH,
+        title: "Mass-action term does not fit",
+        help: "The kinetic law's SBO term gives orders and numbers of reactants and products \
+               that differ from the rate law, or the rate law's terms do not match the \
+               reaction's stoichiometry.",
+    },
+    Code {
+        code: SO_SHAPE_MISMATCH,
+        title: "Enzymatic or Hill term does not fit",
+        help: "The kinetic law's SBO term names an enzymatic or Hill-type rate law, but the \
+               rate law lacks that shape (saturation in the substrate, a species raised to a \
+               power, a modifier) or the reaction has a different number of reactants or \
+               products.",
+    },
     Code {
         code: UN_RATE_UNITS,
         title: "Rate law units wrong",

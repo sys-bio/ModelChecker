@@ -40,6 +40,14 @@ your computer. There is also a command-line tool for checking whole folders.
 | UN006 | warning  | Same suspicion without units: concentrations in a compartment of size other than 1, and no compartment in the rate law |
 | UN007 | warning  | Rule or assignment units differ from its variable's |
 | UN008 | info     | What could not be checked (usually parameters without units) |
+| SO001 | warning  | SBO term that is not valid or not in the ontology |
+| SO002 | info     | Obsolete SBO term |
+| SO003 | warning  | SBO term from the wrong branch for the element (e.g. a reaction term on a kinetic law) |
+| SO004 | warning  | Kinetic law marked irreversible, but the rate can be negative |
+| SO005 | warning  | Kinetic law marked reversible, but the rate can never be negative |
+| SO006 | warning  | Kinetic law marked mass action, but not of mass-action form |
+| SO007 | warning  | Mass-action term whose orders or reactant/product counts differ from the rate law or the reaction |
+| SO008 | warning  | Enzymatic or Hill term that does not fit: no saturation, no species power, no modifier, wrong reactant count |
 | SY001 | error    | Undefined symbol |
 | SY002-SY004 | info | Unused parameter, local parameter, function |
 | SY005 | info     | Local parameter shadows a global |
@@ -73,6 +81,15 @@ your computer. There is also a command-line tool for checking whole folders.
   whatever it is added to. In a product, only small whole numbers and 1/2
   count as dimensionless; other numbers may hide units (conversion factors,
   rate constants), as in libSBML.
+- **SBO terms.** The ontology is built in (`crates/mc-core/src/sbo_data.rs`,
+  generated from the EBI-BioModels SBO repository by
+  `scripts/sbo_gen.py`). Each element's term must come from the branch SBML
+  allows for it. A kinetic law's term is checked against its formula, as
+  written with function definitions inlined. Mass-action terms are checked by
+  writing the rate law as signed products of species powers and comparing the
+  forward and reverse parts with the orders and counts in the term's name and
+  with the reaction's stoichiometry. Declared modifiers, such as a template or
+  catalyst, may appear without counting as a stoichiometry mismatch.
 - **Repeated findings.** When three or more rate laws fail a unit check for
   the same reason (off by the same ratio, or missing the same compartment's
   volume), they are reported as one model-level finding that lists the

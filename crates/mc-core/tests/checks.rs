@@ -412,3 +412,94 @@ fn repeated_unit_findings_are_merged() {
     let n = r.findings.iter().filter(|f| f.code == UN_MISSING_VOLUME).count();
     assert_eq!(n, 2, "{}", show(&r));
 }
+
+// ---------------------------------------------------------------- SBO
+
+/// `ant` with the first reaction's kinetic law given `sbo`.
+fn run_sbo(ant: &str, sbo: &str) -> Report {
+    let mut d = doc(ant);
+    let m = d.model.as_mut().unwrap();
+    m.reactions[0].kinetic_law.as_mut().unwrap().meta.sbo_term = Some(sbo.into());
+    mc_core::check(&sbml_io::write(&d))
+}
+
+fn sbo_codes(r: &Report) -> Vec<&'static str> {
+    codes(r).into_iter().filter(|c| c.starts_with("SO")).collect()
+}
+
+const MASS_ACTION_1: &str = "J1: S => P; k*S\nS = 1; P = 0; k = 1";
+
+#[test]
+fn sbo_first_order_mass_action_fits() {
+    let r = run_sbo(MASS_ACTION_1, "SBO:0000049");
+    assert!(sbo_codes(&r).is_empty(), "{}", show(&r));
+}
+
+#[test]
+fn sbo_mass_action_order_wrong() {
+    let r = run_sbo("species E\nJ1: S => P; k*S*E\nS = 1; P = 0; E = 1; k = 1", "SBO:0000049");
+    assert_has!(r, SO_MASS_ACTION_MISMATCH);
+}
+
+#[test]
+fn sbo_mass_action_against_stoichiometry() {
+    // Second order, two reactants, but the reaction is 2 A -> C.
+    let r = run_sbo("J1: 2 A => C; k*A*B\nA = 1; B = 1; C = 0; k = 1", "SBO:0000054");
+    assert_has!(r, SO_MASS_ACTION_MISMATCH);
+    let r = run_sbo("J1: A + B => C; k*A*B\nA = 1; B = 1; C = 0; k = 1", "SBO:0000054");
+    assert!(sbo_codes(&r).is_empty(), "{}", show(&r));
+}
+
+#[test]
+fn sbo_irreversible_but_negative() {
+    let r = run_sbo("J1: S -> P; k1*S - k2*P\nS = 1; P = 0; k1 = 1; k2 = 1", "SBO:0000049");
+    assert_has!(r, SO_IRREVERSIBLE_NEGATIVE);
+}
+
+#[test]
+fn sbo_reversible_mass_action() {
+    let r = run_sbo("J1: A -> B; k1*A - k2*B\nA = 1; B = 0; k1 = 1; k2 = 1", "SBO:0000080");
+    assert!(sbo_codes(&r).is_empty(), "{}", show(&r));
+    let r = run_sbo("J1: A -> B; k1*A\nA = 1; B = 0; k1 = 1", "SBO:0000080");
+    assert_has!(r, SO_REVERSIBLE_NEVER_NEGATIVE);
+    assert_has!(r, SO_MASS_ACTION_MISMATCH);
+}
+
+#[test]
+fn sbo_mass_action_term_on_michaelis_menten() {
+    let r = run_sbo("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 1", "SBO:0000049");
+    assert_has!(r, SO_NOT_MASS_ACTION);
+}
+
+#[test]
+fn sbo_michaelis_menten() {
+    let mm = "J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 1";
+    let r = run_sbo(mm, "SBO:0000028");
+    assert!(sbo_codes(&r).is_empty(), "{}", show(&r));
+    let r = run_sbo(MASS_ACTION_1, "SBO:0000028");
+    assert_has!(r, SO_SHAPE_MISMATCH);
+    // Hill needs a power.
+    let r = run_sbo(mm, "SBO:0000192");
+    assert_has!(r, SO_SHAPE_MISMATCH);
+    let r = run_sbo("J1: S => P; Vm*S^h/(K^h + S^h)\nS = 1; P = 0; Vm = 1; K = 1; h = 2", "SBO:0000192");
+    assert!(sbo_codes(&r).is_empty(), "{}", show(&r));
+}
+
+#[test]
+fn sbo_wrong_branch_and_unknown() {
+    let r = run_sbo(MASS_ACTION_1, "SBO:0000176"); // biochemical reaction
+    assert_has!(r, SO_WRONG_BRANCH);
+    let r = run_sbo(MASS_ACTION_1, "SBO:9999999");
+    assert_has!(r, SO_UNKNOWN);
+    let mut d = doc(MASS_ACTION_1);
+    d.model.as_mut().unwrap().species[0].meta.sbo_term = Some("SBO:0000049".into());
+    let r = mc_core::check(&sbml_io::write(&d));
+    assert_has!(r, SO_WRONG_BRANCH);
+}
+
+#[test]
+fn sbo_mass_action_with_template_modifier() {
+    // Translation from a template: first order in the modifier X.
+    let r = run_sbo("species X\nJ1: => P; k*X\nX = 1; P = 0; k = 1", "SBO:0000049");
+    assert_not!(r, SO_MASS_ACTION_MISMATCH);
+}

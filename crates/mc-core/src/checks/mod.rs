@@ -1,6 +1,7 @@
 //! The checks, one module per family.
 
 mod reactions;
+mod sbo;
 pub mod scope;
 mod singular;
 mod symbols;
@@ -50,6 +51,7 @@ pub fn run(model: &Model, level: u32) -> Vec<Finding> {
     singular::check(&mut ctx);
     reactions::check(&mut ctx);
     units::check(&mut ctx);
+    sbo::check(&mut ctx);
     ctx.findings
 }
 
