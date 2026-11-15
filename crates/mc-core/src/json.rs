@@ -24,7 +24,9 @@ pub fn report(r: &Report) -> String {
         field_str(
             &mut s,
             "title",
-            codes::lookup(f.code).map(|c| c.title).unwrap_or(""),
+            f.title
+                .as_deref()
+                .unwrap_or_else(|| codes::lookup(f.code).map(|c| c.title).unwrap_or("")),
         );
         s.push(',');
         field_str(&mut s, "severity", f.severity.as_str());

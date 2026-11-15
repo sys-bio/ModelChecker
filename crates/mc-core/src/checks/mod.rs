@@ -41,8 +41,25 @@ impl Ctx<'_, '_> {
             message: message.into(),
             witness,
             reaction: None,
+            title: None,
             line: None,
         });
+    }
+
+    /// As [`Ctx::add`], with a title for this particular problem.
+    pub fn add_titled(
+        &mut self,
+        code: &'static str,
+        severity: Severity,
+        element: Element,
+        title: String,
+        message: impl Into<String>,
+        witness: Option<String>,
+    ) {
+        self.add(code, severity, element, message, witness);
+        if let Some(f) = self.findings.last_mut() {
+            f.title = Some(title);
+        }
     }
 }
 

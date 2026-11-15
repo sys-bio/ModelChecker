@@ -83,6 +83,7 @@ pub fn check(xml: &str) -> Report {
                     message: format!("Line {}, column {}: {}", d.line, d.column, d.message),
                     witness: None,
                     reaction: None,
+                    title: None,
                     line: None,
                 });
             }
@@ -98,6 +99,7 @@ pub fn check(xml: &str) -> Report {
             message: format!("Line {}, column {}: {}", d.line, d.column, d.message),
             witness: None,
             reaction: None,
+            title: None,
             line: None,
         });
     }
@@ -125,6 +127,7 @@ pub fn check_document(doc: &sbml_io::Document) -> Report {
             message: issue.message,
             witness: None,
             reaction: None,
+            title: None,
             line: None,
         });
     }
@@ -136,6 +139,7 @@ pub fn check_document(doc: &sbml_io::Document) -> Report {
             message: "The document contains no model.".into(),
             witness: None,
             reaction: None,
+            title: None,
             line: None,
         });
         return report;

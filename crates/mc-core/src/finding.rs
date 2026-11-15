@@ -104,6 +104,9 @@ pub struct Finding {
     /// The reaction the finding is about, written out:
     /// `J1: S1 + 2 S2 -> P; k1*S1*S2`.
     pub reaction: Option<String>,
+    /// A title naming this finding's particular problem ("Division by zero
+    /// at the start"), where the code's own title is general.
+    pub title: Option<String>,
     /// A line in the model's Antimony text, for findings that belong to a
     /// place rather than an element (an Antimony syntax error). Others are
     /// placed by their element.

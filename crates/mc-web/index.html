@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Model Checker</title>
-<meta name="description" content="Static checks for kinetic SBML models: rate law singularities, species that can go negative, zero-order reactions, undefined and unused symbols. Runs entirely in your browser.">
+<meta name="description" content="Static checks for kinetic SBML models: rate laws that divide by zero, species that can go negative, zero-order reactions, undefined and unused symbols. Runs entirely in your browser.">
 
 <!-- Trunk builds this crate to WebAssembly and injects the loader, which
      sets window.wasmBindings and fires TrunkApplicationStarted. Build with
@@ -214,7 +214,7 @@ select, input[type=search] {
   margin-top: 6px; padding: 6px 10px; border-radius: 6px; background: var(--code-bg);
   overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.f-wit::before { content: "Witness: "; color: var(--muted); font-family: system-ui, sans-serif; }
+.f-wit::before { content: "Example values: "; color: var(--muted); font-family: system-ui, sans-serif; }
 .empty { padding: 20px; text-align: center; color: var(--muted); }
 
 details.help { margin-top: 32px; background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px 16px; }
@@ -249,7 +249,7 @@ footer a { color: var(--accent); }
          repository such as BioModels, when reviewing or curating someone else's model, or
          when a simulation misbehaves and you want to rule out the model itself. It looks for:</p>
       <ul>
-        <li><strong>Singular rate laws</strong>: division by zero, logs of zero, and the like,
+        <li><strong>Rates that cannot be calculated</strong>: division by zero, logs of zero, and the like,
             at the initial values or at any state the model could reach.</li>
         <li><strong>Species that can go negative</strong>: reactions that still consume a
             species once it has run out, including reactions written in the opposite

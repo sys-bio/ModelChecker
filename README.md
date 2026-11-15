@@ -20,9 +20,9 @@ your computer. There is also a command-line tool for checking whole folders.
 
 | Code  | Severity | Check |
 |-------|----------|-------|
-| RL012 | error    | Rate law or rule singular at the initial values (simulation fails at once) |
-| RL001 | warning  | Rate law singular at some state with all species >= 0 |
-| RL002 | info     | Possibly singular: interval analysis could not rule it out |
+| RL012 | error    | Rate law or rule cannot be calculated at the starting values (divides by zero, log of zero, ...): a simulation fails at once |
+| RL001 | warning  | Rate law cannot be calculated at some values the model could reach (all species >= 0) |
+| RL002 | info     | Rate law might not be calculable: interval analysis could not rule it out |
 | RL003 | warning  | Species can go negative: with the species at zero, the reaction still consumes it |
 | RL004 | info     | Species may go negative: not proved, or fails only outside initial values |
 | RL005 | warning  | Zero order: the reaction consumes species its rate does not depend on |
@@ -82,7 +82,8 @@ your computer. There is also a command-line tool for checking whole folders.
   that use them, so dependencies through them count.
 - Species are non-negative (unless they start negative, like a voltage), and
   parameters are fixed at their values unless a rule or event changes them.
-- **Singularities.** Each expression is evaluated over intervals, which
+- **Rates that cannot be calculated** (division by zero, log of zero, and
+  so on). Each expression is evaluated over intervals, which
   covers all such states at once. A concrete point is then searched for. A
   hazard inside a `piecewise` branch whose condition may guard it is not
   reported.

@@ -330,25 +330,26 @@ pub const ALL: &[Code] = &[
     },
     Code {
         code: RL_SINGULAR,
-        title: "Singular rate law",
-        help: "A division by zero, log of a non-positive number, root of a negative number, \
-               or similar, occurs at a state with all species non-negative (and no conserved \
-               total forced to zero). Whether a simulation gets there depends on the \
-               dynamics; power-law models are singular at zero by design. The witness gives \
-               a point where it happens.",
+        title: "Rate cannot be calculated at some values",
+        help: "For some values the model could reach, the rate law cannot be calculated: it \
+               would divide by zero, take the logarithm of zero or a negative number, take the \
+               square root of a negative number, or similar. The witness gives such values. \
+               Whether a simulation actually gets there depends on how the model behaves; \
+               some models (power-law models, for example) are written this way on purpose.",
     },
     Code {
         code: RL_SINGULAR_INITIAL,
-        title: "Singular at initial values",
-        help: "A division by zero, log of a non-positive number, or similar, occurs at the \
-               model's initial values (or for all values), so a simulation fails at once.",
+        title: "Rate cannot be calculated at the start",
+        help: "At the model's starting values, the rate law cannot be calculated: it divides \
+               by zero, takes the logarithm of zero or a negative number, or similar. A \
+               simulation will fail immediately.",
     },
     Code {
         code: RL_POSSIBLY_SINGULAR,
-        title: "Possibly singular rate law",
-        help: "Interval analysis could not rule out a division by zero (or similar) for \
-               non-negative species values, but no concrete point was found. Often a false \
-               alarm for complex expressions; worth a look.",
+        title: "Rate might not be calculable",
+        help: "The checker could not rule out that the rate law divides by zero (or similar) \
+               for some values of the species, but found no actual values where it does. \
+               Often a false alarm for complicated rate laws; worth a look.",
     },
     Code {
         code: RL_NEGATIVITY,

@@ -33,6 +33,7 @@ fn finding(code: &'static str, severity: Severity, message: String, line: Option
         message,
         witness: None,
         reaction: None,
+        title: None,
         line,
     }
 }
