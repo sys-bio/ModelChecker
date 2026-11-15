@@ -7,6 +7,7 @@ mod sbo;
 pub mod scope;
 mod singular;
 mod symbols;
+mod thermo;
 mod units;
 
 use std::collections::{HashMap, HashSet};
@@ -54,6 +55,7 @@ pub fn run(model: &Model, level: u32) -> Vec<Finding> {
     singular::check(&mut ctx);
     reactions::check(&mut ctx);
     mass_action::check(&mut ctx);
+    thermo::check(&mut ctx);
     units::check(&mut ctx);
     sbo::check(&mut ctx);
     ctx.findings

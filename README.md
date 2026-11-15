@@ -33,6 +33,8 @@ your computer. There is also a command-line tool for checking whole folders.
 | RL010 | info     | Modifier not used by the rate law |
 | RL011 | warning  | Reaction with no reactants and no products |
 | RL013 | warning  | Mass-action rate law whose powers differ from the stoichiometry (e.g. `k*A` for `2 A -> B`) |
+| TD001 | warning  | Reversible rate law whose equilibrium is not a constant mass-action ratio (Haldane), e.g. shifted by a modifier |
+| TD002 | warning  | Cycle of reversible reactions whose equilibrium constants do not multiply to 1 (Wegscheider) |
 | UN001 | warning  | Rate law units differ from extent per time |
 | UN002 | warning  | Adds, subtracts or compares quantities of different dimensions |
 | UN003 | warning  | Same, with the same dimensions but a different scale (mM vs M) |
@@ -75,6 +77,18 @@ your computer. There is also a command-line tool for checking whole folders.
   counterexample is first sought with the other variables between zero and
   their initial values. A failure found only outside that range is reported
   as info, since it is often a part exceeding its total (`ET - ES`).
+- **Thermodynamics.** Many published models are not thermodynamically
+  consistent, often harmlessly, so these are warnings. For each reversible
+  rate law that depends on both its reactants and its products, the
+  mass-action ratio at which it is zero is found numerically at several
+  random states, by scaling the products until the rate vanishes. A
+  consistent rate law gives one value, its equilibrium constant. If the value
+  moves, each variable is perturbed in turn to find what moves it (TD001).
+  Cycles of reversible reactions come from the null space of the
+  stoichiometry, counting boundary species, so a path between two boundary
+  species is not a cycle. Their equilibrium constants must multiply to 1
+  around each cycle (TD002). Products within 1% of 1 are taken as rounding.
+  Only reactions with whole-number stoichiometries up to 4 are considered.
 - **Units.** Each expression's units are inferred from the declared units
   of its symbols (SI exponents plus a scale). A species is substance over
   its compartment's size unless `hasOnlySubstanceUnits`. A parameter without

@@ -540,3 +540,54 @@ fn mass_action_order_skips_power_law() {
     let r = run("J1: A => B; a*A^g\nA = 1; B = 0; a = 1; g = 0.5");
     assert_not!(r, RL_MASS_ACTION_ORDER);
 }
+
+// ------------------------------------------------- thermodynamics
+
+#[test]
+fn haldane_consistent_laws() {
+    let r = run(
+        "J1: S -> P; (Vf*S/Ks - Vr*P/Kp)/(1 + S/Ks + P/Kp)\n\
+         S = 1; P = 0; Vf = 1; Vr = 0.5; Ks = 0.2; Kp = 0.3",
+    );
+    assert_not!(r, TD_HALDANE);
+    // An enzyme scaling both directions does not shift the equilibrium.
+    let r = run("species E\nJ1: S -> P; E*(k1*S - k2*P)\nS = 1; P = 0; E = 1; k1 = 1; k2 = 2");
+    assert_not!(r, TD_HALDANE);
+}
+
+#[test]
+fn haldane_violated_by_a_modifier() {
+    // E speeds up only the forward direction: it shifts the equilibrium.
+    let r = run("species E\nJ1: S -> P; E*k1*S - k2*P\nS = 1; P = 0; E = 1; k1 = 1; k2 = 2");
+    let f = r
+        .findings
+        .iter()
+        .find(|f| f.code == TD_HALDANE)
+        .unwrap_or_else(|| panic!("{}", show(&r)));
+    assert!(f.message.contains("moves with E"), "{}", f.message);
+}
+
+#[test]
+fn wegscheider_cycle() {
+    let cycle = |k3r: &str| {
+        run(&format!(
+            "J1: A -> B; k1*A - k1r*B\nJ2: B -> C; k2*B - k2r*C\nJ3: C -> A; k3*C - k3r*A\n\
+             A = 1; B = 1; C = 1; k1 = 2; k1r = 1; k2 = 3; k2r = 1; k3 = 1; k3r = {k3r}"
+        ))
+    };
+    // K1*K2*K3 = 2 * 3 * (1/6) = 1: consistent.
+    assert_not!(cycle("6"), TD_WEGSCHEIDER);
+    // 2 * 3 * 1 = 6: the cycle would turn at equilibrium.
+    let r = cycle("1");
+    assert_has!(r, TD_WEGSCHEIDER);
+    assert!(r.findings.iter().any(|f| f.message.contains("multiply to 6")), "{}", show(&r));
+}
+
+#[test]
+fn wegscheider_ignores_paths_between_boundaries() {
+    let r = run(
+        "J1: $X -> A; k1*X - k1r*A\nJ2: A -> $Y; k2*A - k2r*Y\n\
+         X = 1; Y = 1; A = 1; k1 = 2; k1r = 1; k2 = 3; k2r = 1",
+    );
+    assert_not!(r, TD_WEGSCHEIDER);
+}

@@ -50,6 +50,9 @@ pub const SO_NOT_MASS_ACTION: &str = "SO006";
 pub const SO_MASS_ACTION_MISMATCH: &str = "SO007";
 pub const SO_SHAPE_MISMATCH: &str = "SO008";
 
+pub const TD_HALDANE: &str = "TD001";
+pub const TD_WEGSCHEIDER: &str = "TD002";
+
 pub const AN_ERROR: &str = "AN001";
 pub const AN_WARNING: &str = "AN002";
 
@@ -59,6 +62,23 @@ pub const SB_STRUCTURE: &str = "SB003";
 pub const SB_NO_MODEL: &str = "SB004";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: TD_HALDANE,
+        title: "Equilibrium not constant (Haldane)",
+        help: "A reversible rate law is zero at equilibrium, which thermodynamics fixes at \
+               one value of the mass-action ratio: the equilibrium constant. This rate law is \
+               zero at different ratios depending on other variables, such as a modifier, so \
+               it does not satisfy the Haldane relationship. Many published models are not \
+               thermodynamically consistent, which may not matter for their purpose.",
+    },
+    Code {
+        code: TD_WEGSCHEIDER,
+        title: "Cycle of equilibria inconsistent (Wegscheider)",
+        help: "Reversible reactions forming a closed cycle must have equilibrium constants \
+               whose product around the cycle is 1; otherwise the cycle would turn forever at \
+               equilibrium. Many published models are not thermodynamically consistent, which \
+               may not matter for their purpose.",
+    },
     Code {
         code: AN_ERROR,
         title: "Antimony error",
