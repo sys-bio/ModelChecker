@@ -340,11 +340,33 @@ impl Infer<'_, '_, '_> {
                     other => other,
                 }
             }
-            Op::Exp | Op::Ln | Op::Factorial | Op::Sin | Op::Cos | Op::Tan | Op::Sec
-            | Op::Csc | Op::Cot | Op::Sinh | Op::Cosh | Op::Tanh | Op::Sech | Op::Csch
-            | Op::Coth | Op::ArcSin | Op::ArcCos | Op::ArcTan | Op::ArcSec | Op::ArcCsc
-            | Op::ArcCot | Op::ArcSinh | Op::ArcCosh | Op::ArcTanh | Op::ArcSech
-            | Op::ArcCsch | Op::ArcCoth => {
+            Op::Exp
+            | Op::Ln
+            | Op::Factorial
+            | Op::Sin
+            | Op::Cos
+            | Op::Tan
+            | Op::Sec
+            | Op::Csc
+            | Op::Cot
+            | Op::Sinh
+            | Op::Cosh
+            | Op::Tanh
+            | Op::Sech
+            | Op::Csch
+            | Op::Coth
+            | Op::ArcSin
+            | Op::ArcCos
+            | Op::ArcTan
+            | Op::ArcSec
+            | Op::ArcCsc
+            | Op::ArcCot
+            | Op::ArcSinh
+            | Op::ArcCosh
+            | Op::ArcTanh
+            | Op::ArcSech
+            | Op::ArcCsch
+            | Op::ArcCoth => {
                 for a in args {
                     let u = self.infer(a);
                     self.dimensionless_arg(u, a, op.tag());
@@ -419,14 +441,25 @@ pub fn check(ctx: &mut Ctx) {
             .kinetic_law
             .iter()
             .flat_map(|k| &k.parameters)
-            .map(|p| (p.id.clone(), p.units.as_deref().and_then(|u| units.resolve(u))))
+            .map(|p| {
+                (
+                    p.id.clone(),
+                    p.units.as_deref().and_then(|u| units.resolve(u)),
+                )
+            })
             .collect();
         let inlined = view.inline_functions(math);
         let mut inf = new_infer(local_units.clone(), locals(r));
         let u = inf.infer(&inlined);
         let issues = std::mem::take(&mut inf.issues);
         for i in issues {
-            ctx.add(i.code, Severity::Warning, el.clone(), with_law(&i.message, &inlined), None);
+            ctx.add(
+                i.code,
+                Severity::Warning,
+                el.clone(),
+                with_law(&i.message, &inlined),
+                None,
+            );
         }
         let mut volume_reported = false;
         match (u, expected_rate) {
@@ -463,59 +496,106 @@ pub fn check(ctx: &mut Ctx) {
     merge_groups(ctx, grouped);
 
     // Rules and assignments against their variables' declared units.
-    let check_target = |ctx: &mut Ctx, el: Element, var: &str, math: &Math, per_time: bool, what: &str| {
-        let Some(mut want) = declared(view, &units, var) else {
-            return;
+    let check_target =
+        |ctx: &mut Ctx, el: Element, var: &str, math: &Math, per_time: bool, what: &str| {
+            let Some(mut want) = declared(view, &units, var) else {
+                return;
+            };
+            if per_time {
+                let Some(t) = units.time else { return };
+                want = want.div(&t);
+            }
+            let inlined = view.inline_functions(math);
+            let mut inf = new_infer(HashMap::new(), HashMap::new());
+            let got = inf.infer(&inlined);
+            for i in std::mem::take(&mut inf.issues) {
+                ctx.add(
+                    i.code,
+                    Severity::Warning,
+                    el.clone(),
+                    with_law(&i.message, &inlined),
+                    None,
+                );
+            }
+            if let U::Known(g) = got
+                && !g.same(&want)
+            {
+                ctx.add(
+                    UN_ASSIGNMENT,
+                    Severity::Warning,
+                    el,
+                    format!(
+                        "The {what} for `{var}` has units {}, but {} {}.\nExpression: {}",
+                        units.describe(&g),
+                        if per_time {
+                            "the variable's units per time are"
+                        } else {
+                            "the variable is in"
+                        },
+                        units.describe(&want),
+                        infix(&inlined)
+                    ),
+                    None,
+                );
+            }
         };
-        if per_time {
-            let Some(t) = units.time else { return };
-            want = want.div(&t);
-        }
-        let inlined = view.inline_functions(math);
-        let mut inf = new_infer(HashMap::new(), HashMap::new());
-        let got = inf.infer(&inlined);
-        for i in std::mem::take(&mut inf.issues) {
-            ctx.add(i.code, Severity::Warning, el.clone(), with_law(&i.message, &inlined), None);
-        }
-        if let U::Known(g) = got
-            && !g.same(&want)
-        {
-            ctx.add(
-                UN_ASSIGNMENT,
-                Severity::Warning,
-                el,
-                format!(
-                    "The {what} for `{var}` has units {}, but {} {}.\nExpression: {}",
-                    units.describe(&g),
-                    if per_time { "the variable's units per time are" } else { "the variable is in" },
-                    units.describe(&want),
-                    infix(&inlined)
-                ),
-                None,
-            );
-        }
-    };
     for rule in &m.rules {
         match rule {
-            Rule::Assignment { variable, math: Some(math), .. } => {
-                check_target(ctx, Element::Rule(variable.clone()), variable, math, false, "assignment rule");
+            Rule::Assignment {
+                variable,
+                math: Some(math),
+                ..
+            } => {
+                check_target(
+                    ctx,
+                    Element::Rule(variable.clone()),
+                    variable,
+                    math,
+                    false,
+                    "assignment rule",
+                );
             }
-            Rule::Rate { variable, math: Some(math), .. } => {
-                check_target(ctx, Element::Rule(variable.clone()), variable, math, true, "rate rule");
+            Rule::Rate {
+                variable,
+                math: Some(math),
+                ..
+            } => {
+                check_target(
+                    ctx,
+                    Element::Rule(variable.clone()),
+                    variable,
+                    math,
+                    true,
+                    "rate rule",
+                );
             }
             _ => {}
         }
     }
     for ia in &m.initial_assignments {
         if let Some(math) = &ia.math {
-            check_target(ctx, Element::InitialAssignment(ia.symbol.clone()), &ia.symbol, math, false, "initial assignment");
+            check_target(
+                ctx,
+                Element::InitialAssignment(ia.symbol.clone()),
+                &ia.symbol,
+                math,
+                false,
+                "initial assignment",
+            );
         }
     }
     for (i, e) in m.events.iter().enumerate() {
         let id = e.id.clone().unwrap_or_else(|| format!("#{}", i + 1));
         for a in &e.assignments {
             if let Some(math) = &a.math {
-                check_target(ctx, Element::Event(id.clone()), &a.variable, math, false, "event assignment");
+                check_target(
+                    ctx,
+                    Element::Event(id.clone()),
+                    &a.variable,
+                    math,
+                    false,
+                    "event assignment",
+                );
             }
         }
     }
@@ -542,7 +622,11 @@ pub fn check(ctx: &mut Ctx) {
             let mut names: Vec<&String> = missing_units.iter().collect();
             let more = names.len().saturating_sub(10);
             names.truncate(10);
-            let list = names.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ");
+            let list = names
+                .iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>()
+                .join(", ");
             ctx.add(
                 UN_COVERAGE,
                 Severity::Info,
@@ -648,7 +732,9 @@ fn check_rate_units(
         .map(|s| s.compartment.as_str())
         .collect();
     for c in comps {
-        let Some(cu) = declared(view, units, c) else { continue };
+        let Some(cu) = declared(view, units, c) else {
+            continue;
+        };
         if !cu.is_dimensionless() && got.mul(&cu).same(&want) {
             ctx.add(
                 UN_MISSING_VOLUME,
@@ -696,7 +782,8 @@ fn check_rate_units(
     );
     // Rate laws off by the same ratio probably share one cause.
     let ratio = got.div(&want);
-    let time_only = (0..8).all(|i| i == 2 || ratio.exp[i].abs() < 1e-9) && ratio.exp[2].abs() > 1e-9;
+    let time_only =
+        (0..8).all(|i| i == 2 || ratio.exp[i].abs() < 1e-9) && ratio.exp[2].abs() > 1e-9;
     let hint = if ratio.is_dimensionless() {
         format!(
             "They are all off by the same factor, {}, which points to a unit definition (often the substance or time unit) being off by that factor, not to the rate laws themselves.",
@@ -735,7 +822,10 @@ fn check_rate_units(
 fn volume_heuristic(ctx: &mut Ctx, r: &sbml_io::Reaction, math: &Math) -> Option<Group> {
     let view = ctx.view;
     let m = view.model;
-    let shadow = super::shadow(&locals(r)).iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let shadow = super::shadow(&locals(r))
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
     let shadow: HashSet<&str> = shadow.iter().map(String::as_str).collect();
     let expanded = view.expand(math, &shadow);
     let deps: HashSet<String> = free_symbols(&expanded).into_iter().collect();
@@ -749,11 +839,15 @@ fn volume_heuristic(ctx: &mut Ctx, r: &sbml_io::Reaction, math: &Math) -> Option
     // size other than 1.
     let mut culprit: Option<(&str, &str, f64)> = None;
     for sr in r.reactants.iter().chain(&r.products) {
-        let Some(s) = m.species.iter().find(|s| s.id == sr.species) else { continue };
+        let Some(s) = m.species.iter().find(|s| s.id == sr.species) else {
+            continue;
+        };
         if !deps.contains(&s.id) || s.has_only_substance_units == Some(true) {
             continue;
         }
-        let Some(c) = m.compartments.iter().find(|c| c.id == s.compartment) else { continue };
+        let Some(c) = m.compartments.iter().find(|c| c.id == s.compartment) else {
+            continue;
+        };
         if c.spatial_dimensions == Some(0.0) {
             continue;
         }

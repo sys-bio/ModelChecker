@@ -107,7 +107,10 @@ fn describe_cycle(c: &[String]) -> String {
     if c.len() == 1 {
         return format!("{} depends on itself", c[0]);
     }
-    let mut parts: Vec<String> = c.windows(2).map(|w| format!("{} depends on {}", w[0], w[1])).collect();
+    let mut parts: Vec<String> = c
+        .windows(2)
+        .map(|w| format!("{} depends on {}", w[0], w[1]))
+        .collect();
     parts.push(format!("which depends on {}", c[0]));
     parts.join(", ")
 }
@@ -117,12 +120,19 @@ fn loops(ctx: &mut Ctx) {
     let view = ctx.view;
     let m = view.model;
     let deps = |math: &Math| -> BTreeSet<String> {
-        free_symbols(&view.inline_functions(math)).into_iter().collect()
+        free_symbols(&view.inline_functions(math))
+            .into_iter()
+            .collect()
     };
     // Assignment rules, and in Level 3 reactions (whose ids are their rates).
     let mut graph: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for rule in &m.rules {
-        if let Rule::Assignment { variable, math: Some(x), .. } = rule {
+        if let Rule::Assignment {
+            variable,
+            math: Some(x),
+            ..
+        } = rule
+        {
             graph.insert(variable.clone(), deps(x));
         }
     }
@@ -135,7 +145,10 @@ fn loops(ctx: &mut Ctx) {
                     .flat_map(|k| &k.parameters)
                     .map(|p| p.id.as_str())
                     .collect();
-                let d = deps(x).into_iter().filter(|s| !locals.contains(s.as_str())).collect();
+                let d = deps(x)
+                    .into_iter()
+                    .filter(|s| !locals.contains(s.as_str()))
+                    .collect();
                 graph.insert(r.id.clone(), d);
             }
         }
@@ -172,13 +185,21 @@ fn loops(ctx: &mut Ctx) {
         return;
     }
     for rule in &m.rules {
-        if let Rule::Assignment { variable, math: Some(x), .. } = rule {
+        if let Rule::Assignment {
+            variable,
+            math: Some(x),
+            ..
+        } = rule
+        {
             init.entry(variable.clone()).or_insert_with(|| deps(x));
         }
     }
     for c in cycles(&init) {
         // Loops among rules alone are reported above.
-        let Some(ia) = c.iter().find(|v| view.initial_assignments.contains_key(v.as_str())) else {
+        let Some(ia) = c
+            .iter()
+            .find(|v| view.initial_assignments.contains_key(v.as_str()))
+        else {
             continue;
         };
         ctx.add(
@@ -204,7 +225,10 @@ fn set_more_than_once(ctx: &mut Ctx) {
     let mut rules: BTreeMap<&str, Vec<&'static str>> = BTreeMap::new();
     for rule in &m.rules {
         match rule {
-            Rule::Assignment { variable, .. } => rules.entry(variable).or_default().push("an assignment rule"),
+            Rule::Assignment { variable, .. } => rules
+                .entry(variable)
+                .or_default()
+                .push("an assignment rule"),
             Rule::Rate { variable, .. } => rules.entry(variable).or_default().push("a rate rule"),
             Rule::Algebraic { .. } => {}
         }
@@ -222,7 +246,11 @@ fn set_more_than_once(ctx: &mut Ctx) {
                 RU_SET_TWICE,
                 Severity::Error,
                 element(v),
-                format!("`{v}` is set by {} rules ({}); a variable may have only one.", kinds.len(), kinds.join(" and ")),
+                format!(
+                    "`{v}` is set by {} rules ({}); a variable may have only one.",
+                    kinds.len(),
+                    kinds.join(" and ")
+                ),
                 None,
             );
         }
@@ -254,7 +282,8 @@ fn set_more_than_once(ctx: &mut Ctx) {
     let mut reported_event: HashSet<&str> = HashSet::new();
     for (i, e) in m.events.iter().enumerate() {
         for a in &e.assignments {
-            if assigned.contains(a.variable.as_str()) && reported_event.insert(a.variable.as_str()) {
+            if assigned.contains(a.variable.as_str()) && reported_event.insert(a.variable.as_str())
+            {
                 ctx.add(
                     RU_SET_TWICE,
                     Severity::Error,
@@ -275,7 +304,9 @@ fn set_more_than_once(ctx: &mut Ctx) {
         if s.boundary_condition == Some(true) {
             continue;
         }
-        let Some(kinds) = rules.get(s.id.as_str()) else { continue };
+        let Some(kinds) = rules.get(s.id.as_str()) else {
+            continue;
+        };
         if !view.in_reactions.contains(s.id.as_str()) {
             continue;
         }
@@ -287,8 +318,7 @@ fn set_more_than_once(ctx: &mut Ctx) {
                 "{} is changed by reactions and also set by {}. A species set by a rule must be \
                  a boundary species if it takes part in reactions; otherwise the reactions and \
                  the rule both claim it.",
-                s.id,
-                kinds[0]
+                s.id, kinds[0]
             ),
             None,
         );
@@ -296,9 +326,15 @@ fn set_more_than_once(ctx: &mut Ctx) {
 
     // RU004: constants that change.
     let constant = |id: &str| -> bool {
-        m.parameters.iter().any(|p| p.id == id && p.constant == Some(true))
-            || m.compartments.iter().any(|c| c.id == id && c.constant == Some(true))
-            || m.species.iter().any(|s| s.id == id && s.constant == Some(true))
+        m.parameters
+            .iter()
+            .any(|p| p.id == id && p.constant == Some(true))
+            || m.compartments
+                .iter()
+                .any(|c| c.id == id && c.constant == Some(true))
+            || m.species
+                .iter()
+                .any(|s| s.id == id && s.constant == Some(true))
     };
     for (v, kinds) in &rules {
         if constant(v) {
@@ -319,7 +355,10 @@ fn set_more_than_once(ctx: &mut Ctx) {
                     RU_CONSTANT_CHANGED,
                     Severity::Error,
                     event_element(e, i),
-                    format!("The event changes `{}`, which is marked constant.", a.variable),
+                    format!(
+                        "The event changes `{}`, which is marked constant.",
+                        a.variable
+                    ),
                     None,
                 );
             }
@@ -402,7 +441,11 @@ fn events(ctx: &mut Ctx) {
         }
         let true_at_start = v != 0.0;
         // Level 2 behaves as if the trigger were true just before the start.
-        let initial_value = e.trigger.as_ref().and_then(|t| t.initial_value).unwrap_or(true);
+        let initial_value = e
+            .trigger
+            .as_ref()
+            .and_then(|t| t.initial_value)
+            .unwrap_or(true);
         let changes = free_symbols(&trigger)
             .iter()
             .any(|s| scope.range(s).is_some_and(|r| r.varies));

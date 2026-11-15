@@ -90,9 +90,14 @@ pub fn parse(uri: &str) -> Link {
             id: (!id.is_empty()).then(|| decode(id)),
         };
     }
-    let after = ["https://identifiers.org/", "http://identifiers.org/", "https://www.identifiers.org/", "http://www.identifiers.org/"]
-        .iter()
-        .find_map(|h| uri.strip_prefix(h));
+    let after = [
+        "https://identifiers.org/",
+        "http://identifiers.org/",
+        "https://www.identifiers.org/",
+        "http://www.identifiers.org/",
+    ]
+    .iter()
+    .find_map(|h| uri.strip_prefix(h));
     let Some(rest) = after else {
         return Link {
             form: Form::Other,
@@ -175,13 +180,25 @@ mod tests {
     #[test]
     fn links() {
         let l = parse("http://identifiers.org/chebi/CHEBI:15422");
-        assert_eq!((l.form, l.prefix.as_deref(), l.id.as_deref()), (Form::IdentifiersOrg, Some("chebi"), Some("CHEBI:15422")));
+        assert_eq!(
+            (l.form, l.prefix.as_deref(), l.id.as_deref()),
+            (Form::IdentifiersOrg, Some("chebi"), Some("CHEBI:15422"))
+        );
         let l = parse("https://identifiers.org/CHEBI:15422");
-        assert_eq!((l.prefix.as_deref(), l.id.as_deref()), (Some("CHEBI"), Some("CHEBI:15422")));
+        assert_eq!(
+            (l.prefix.as_deref(), l.id.as_deref()),
+            (Some("CHEBI"), Some("CHEBI:15422"))
+        );
         let l = parse("https://identifiers.org/kegg.compound:C00002");
-        assert_eq!((l.prefix.as_deref(), l.id.as_deref()), (Some("kegg.compound"), Some("C00002")));
+        assert_eq!(
+            (l.prefix.as_deref(), l.id.as_deref()),
+            (Some("kegg.compound"), Some("C00002"))
+        );
         let l = parse("urn:miriam:obo.go:GO%3A0005829");
-        assert_eq!((l.form, l.prefix.as_deref(), l.id.as_deref()), (Form::Urn, Some("obo.go"), Some("GO:0005829")));
+        assert_eq!(
+            (l.form, l.prefix.as_deref(), l.id.as_deref()),
+            (Form::Urn, Some("obo.go"), Some("GO:0005829"))
+        );
         assert_eq!(parse("http://example.org/x").form, Form::Other);
     }
 

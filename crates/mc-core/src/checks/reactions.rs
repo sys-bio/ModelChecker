@@ -88,8 +88,16 @@ fn order_and_positivity(ctx: &mut Ctx, r: &Reaction, rate: &Math) {
         .filter(|(s, n)| **n != 0.0 && !is_held(ctx, s))
         .map(|(s, n)| (s, *n))
         .collect();
-    let consumed: Vec<&String> = changed.iter().filter(|(_, n)| *n < 0.0).map(|(s, _)| *s).collect();
-    let missing: Vec<&String> = consumed.iter().copied().filter(|s| !deps.contains(*s)).collect();
+    let consumed: Vec<&String> = changed
+        .iter()
+        .filter(|(_, n)| *n < 0.0)
+        .map(|(s, _)| *s)
+        .collect();
+    let missing: Vec<&String> = consumed
+        .iter()
+        .copied()
+        .filter(|s| !deps.contains(*s))
+        .collect();
 
     // Zero order, missing reactants, constant sources.
     if !consumed.is_empty() && missing.len() == consumed.len() {
@@ -102,7 +110,11 @@ fn order_and_positivity(ctx: &mut Ctx, r: &Reaction, rate: &Math) {
                 "The reaction consumes {names} but its rate does not depend on {}. \
                  This may be intended (a saturated enzyme), but it is often a typo, \
                  and {names} can go negative.\nRate law: {}",
-                if consumed.len() == 1 { "it" } else { "any of them" },
+                if consumed.len() == 1 {
+                    "it"
+                } else {
+                    "any of them"
+                },
                 infix(rate)
             ),
             None,
@@ -173,7 +185,11 @@ fn positivity(ctx: &mut Ctx, base: &Scope, r: &Reaction, rate: &Math, s: &str, n
     let vars = scope.vars(rate);
     let extras = scope.extras(rate);
     let typical = typical_box(&vars);
-    let dir = if n < 0.0 { "consumes" } else { "consumes (runs backwards on)" };
+    let dir = if n < 0.0 {
+        "consumes"
+    } else {
+        "consumes (runs backwards on)"
+    };
     if let Some(w) = counterexample(&scope, rate, &typical, &extras, s, n) {
         ctx.add(
             RL_NEGATIVITY,
@@ -316,7 +332,10 @@ fn declared(ctx: &mut Ctx, r: &Reaction) {
                 RL_UNUSED_MODIFIER,
                 Severity::Info,
                 Element::Reaction(r.id.clone()),
-                format!("{} is declared as a modifier but the rate law does not depend on it.", m.species),
+                format!(
+                    "{} is declared as a modifier but the rate law does not depend on it.",
+                    m.species
+                ),
                 None,
             );
         }
@@ -332,7 +351,10 @@ fn list(items: &[&String]) -> String {
             let (last, rest) = items.split_last().unwrap();
             format!(
                 "{} and {last}",
-                rest.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")
+                rest.iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             )
         }
     }

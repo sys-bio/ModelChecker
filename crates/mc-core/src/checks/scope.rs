@@ -104,7 +104,12 @@ impl<'v, 'm> Scope<'v, 'm> {
             .zip(p)
             .filter(|(_, x)| **x == 0.0)
             .map(|(v, _)| v.id.as_str())
-            .chain(self.pins.iter().filter(|(_, x)| **x == 0.0).map(|(k, _)| k.as_str()));
+            .chain(
+                self.pins
+                    .iter()
+                    .filter(|(_, x)| **x == 0.0)
+                    .map(|(k, _)| k.as_str()),
+            );
         !self.view.conservation.cannot_all_be_zero(zeros)
     }
 
@@ -219,7 +224,11 @@ pub fn search_hazards(scope: &Scope, m: &Math) -> Vec<Witnessed> {
                 .iter()
                 .filter_map(|id| {
                     let r = scope.range(id)?;
-                    Some(format!("{} = {}", sample::display_id(id), sample::fmt_num(r.nominal)))
+                    Some(format!(
+                        "{} = {}",
+                        sample::display_id(id),
+                        sample::fmt_num(r.nominal)
+                    ))
                 })
                 .collect();
             let witness = if shown.is_empty() {

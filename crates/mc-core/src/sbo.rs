@@ -44,18 +44,15 @@ pub fn format(id: u32) -> String {
 }
 
 pub fn term(id: u32) -> Option<Term> {
-    TERMS
-        .binary_search_by_key(&id, |t| t.0)
-        .ok()
-        .map(|i| {
-            let (id, name, parents, obsolete) = TERMS[i];
-            Term {
-                id,
-                name,
-                parents,
-                obsolete,
-            }
-        })
+    TERMS.binary_search_by_key(&id, |t| t.0).ok().map(|i| {
+        let (id, name, parents, obsolete) = TERMS[i];
+        Term {
+            id,
+            name,
+            parents,
+            obsolete,
+        }
+    })
 }
 
 /// Whether `id` is `ancestor` or below it.

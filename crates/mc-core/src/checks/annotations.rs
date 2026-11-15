@@ -44,19 +44,49 @@ pub fn check(ctx: &mut Ctx, namespaces: &[(Option<String>, String)]) {
     };
     let mut items: Vec<Item> = Vec::new();
     for c in &m.compartments {
-        items.push(Item { element: Element::Compartment(c.id.clone()), kind: "compartment", name: c.name.as_deref(), id: &c.id, annotation: read(&c.meta) });
+        items.push(Item {
+            element: Element::Compartment(c.id.clone()),
+            kind: "compartment",
+            name: c.name.as_deref(),
+            id: &c.id,
+            annotation: read(&c.meta),
+        });
     }
     for s in &m.species {
-        items.push(Item { element: Element::Species(s.id.clone()), kind: "species", name: s.name.as_deref(), id: &s.id, annotation: read(&s.meta) });
+        items.push(Item {
+            element: Element::Species(s.id.clone()),
+            kind: "species",
+            name: s.name.as_deref(),
+            id: &s.id,
+            annotation: read(&s.meta),
+        });
     }
     for r in &m.reactions {
-        items.push(Item { element: Element::Reaction(r.id.clone()), kind: "reaction", name: r.name.as_deref(), id: &r.id, annotation: read(&r.meta) });
+        items.push(Item {
+            element: Element::Reaction(r.id.clone()),
+            kind: "reaction",
+            name: r.name.as_deref(),
+            id: &r.id,
+            annotation: read(&r.meta),
+        });
     }
     for p in &m.parameters {
-        items.push(Item { element: Element::Parameter(p.id.clone()), kind: "parameter", name: p.name.as_deref(), id: &p.id, annotation: read(&p.meta) });
+        items.push(Item {
+            element: Element::Parameter(p.id.clone()),
+            kind: "parameter",
+            name: p.name.as_deref(),
+            id: &p.id,
+            annotation: read(&p.meta),
+        });
     }
     for f in &m.function_definitions {
-        items.push(Item { element: Element::FunctionDefinition(f.id.clone()), kind: "function", name: f.name.as_deref(), id: &f.id, annotation: read(&f.meta) });
+        items.push(Item {
+            element: Element::FunctionDefinition(f.id.clone()),
+            kind: "function",
+            name: f.name.as_deref(),
+            id: &f.id,
+            annotation: read(&f.meta),
+        });
     }
     let model_annotation = read(&m.meta);
 
@@ -88,7 +118,12 @@ fn coverage(ctx: &mut Ctx, items: &[Item]) {
         let all: Vec<&Item> = items.iter().filter(|i| i.kind == kind).collect();
         let missing: Vec<&str> = all
             .iter()
-            .filter(|i| !i.annotation.terms.iter().any(|t| !t.model && !t.resources.is_empty()))
+            .filter(|i| {
+                !i.annotation
+                    .terms
+                    .iter()
+                    .any(|t| !t.model && !t.resources.is_empty())
+            })
             .map(|i| i.id)
             .collect();
         if missing.is_empty() {
@@ -97,9 +132,16 @@ fn coverage(ctx: &mut Ctx, items: &[Item]) {
         let what = if all.len() == 1 {
             format!("The only {one} has no database links")
         } else if missing.len() == all.len() {
-            format!("None of the {} have database links", plural(all.len(), one, many))
+            format!(
+                "None of the {} have database links",
+                plural(all.len(), one, many)
+            )
         } else {
-            format!("{} of {} have no database links", missing.len(), plural(all.len(), one, many))
+            format!(
+                "{} of {} have no database links",
+                missing.len(),
+                plural(all.len(), one, many)
+            )
         };
         ctx.add(
             MD_NO_LINKS,
@@ -146,13 +188,19 @@ fn model_information(ctx: &mut Ctx, a: &Annotation) {
     }
     let list = match missing.as_slice() {
         [a] => a.to_string(),
-        _ => format!("{} and {}", missing[..missing.len() - 1].join(", "), missing[missing.len() - 1]),
+        _ => format!(
+            "{} and {}",
+            missing[..missing.len() - 1].join(", "),
+            missing[missing.len() - 1]
+        ),
     };
     ctx.add(
         MD_MODEL_INFO,
         Severity::Info,
         Element::Model,
-        format!("The model has no information on {list}. Repositories such as BioModels ask for these."),
+        format!(
+            "The model has no information on {list}. Repositories such as BioModels ask for these."
+        ),
         None,
     );
 }
@@ -182,7 +230,9 @@ fn links(ctx: &mut Ctx, items: &[Item], model: &Annotation) {
                     Form::Urn => urns += 1,
                     Form::IdentifiersOrg => {}
                 }
-                let Some(prefix) = link.prefix.as_deref() else { continue };
+                let Some(prefix) = link.prefix.as_deref() else {
+                    continue;
+                };
                 // MIRIAM URNs named OBO ontologies `obo.go`, `obo.chebi`.
                 let ns = registry::namespace(prefix)
                     .or_else(|| prefix.strip_prefix("obo.").and_then(registry::namespace));
@@ -225,8 +275,13 @@ fn links(ctx: &mut Ctx, items: &[Item], model: &Annotation) {
                 {
                     let wrong = match kind {
                         "species" => matches!(k, Kind::Reaction | Kind::Literature | Kind::Taxon),
-                        "reaction" => matches!(k, Kind::Molecule | Kind::Gene | Kind::Literature | Kind::Taxon),
-                        "compartment" => matches!(k, Kind::Molecule | Kind::Reaction | Kind::Literature),
+                        "reaction" => matches!(
+                            k,
+                            Kind::Molecule | Kind::Gene | Kind::Literature | Kind::Taxon
+                        ),
+                        "compartment" => {
+                            matches!(k, Kind::Molecule | Kind::Reaction | Kind::Literature)
+                        }
                         _ => false,
                     };
                     if wrong {
@@ -278,7 +333,11 @@ fn links(ctx: &mut Ctx, items: &[Item], model: &Annotation) {
         );
     }
     if malformed.len() >= GROUP_AT {
-        let examples: Vec<String> = malformed.iter().take(8).map(|(e, s)| format!("{e}: {s}")).collect();
+        let examples: Vec<String> = malformed
+            .iter()
+            .take(8)
+            .map(|(e, s)| format!("{e}: {s}"))
+            .collect();
         ctx.add(
             MD_BROKEN_LINK,
             Severity::Warning,
@@ -318,7 +377,9 @@ fn links(ctx: &mut Ctx, items: &[Item], model: &Annotation) {
                 .map(|(p, n)| format!("{p} ({n})"))
                 .collect::<Vec<_>>()
                 .join(", ");
-            parts.push(format!("links point to databases identifiers.org lists as deprecated: {list}"));
+            parts.push(format!(
+                "links point to databases identifiers.org lists as deprecated: {list}"
+            ));
         }
         ctx.add(
             MD_OLD_LINK,
@@ -358,7 +419,8 @@ fn cryptic(id: &str) -> bool {
         "s" | "sa" | "re" | "species" | "reaction" | "compartment" | "metabolite" | "parameter"
     );
     let numbered = digits_tail.len() < id.len();
-    let machine = id.len() > 24 && id.chars().filter(|c| c.is_ascii_hexdigit()).count() * 3 > id.len() * 2;
+    let machine =
+        id.len() > 24 && id.chars().filter(|c| c.is_ascii_hexdigit()).count() * 3 > id.len() * 2;
     (generic && numbered) || machine
 }
 

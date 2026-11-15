@@ -147,10 +147,12 @@ impl<'e, V: Value> Eval<'e, V> {
     fn piecewise(&mut self, pieces: &[(Math, Math)], otherwise: Option<&Math>) -> V {
         let mut acc: Option<V> = None;
         let mut undecided = 0;
-        let join = |acc: Option<V>, v: V| Some(match acc {
-            Some(a) => a.hull(&v),
-            None => v,
-        });
+        let join = |acc: Option<V>, v: V| {
+            Some(match acc {
+                Some(a) => a.hull(&v),
+                None => v,
+            })
+        };
         for (value, cond) in pieces {
             let t = self.eval(cond).truth();
             match t {
@@ -241,7 +243,11 @@ impl<'e, V: Value> Eval<'e, V> {
                 let mut acc = self.eval(first);
                 for a in it {
                     let v = self.eval(a);
-                    acc = if op == Op::Min { acc.min(&v) } else { acc.max(&v) };
+                    acc = if op == Op::Min {
+                        acc.min(&v)
+                    } else {
+                        acc.max(&v)
+                    };
                 }
                 acc
             }

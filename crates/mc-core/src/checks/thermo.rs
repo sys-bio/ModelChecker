@@ -43,7 +43,9 @@ pub fn check(ctx: &mut Ctx) {
     let mut rng = Rng(0x2545_F491_4F6C_DD1D);
 
     for (ri, r) in view.model.reactions.iter().enumerate() {
-        let Some(law) = expanded_rate(view, r) else { continue };
+        let Some(law) = expanded_rate(view, r) else {
+            continue;
+        };
         let deps = free_symbols(&law);
         if deps.iter().any(|d| d == TIME) {
             continue; // an equilibrium that moves with time is not a constant
@@ -108,7 +110,11 @@ pub fn check(ctx: &mut Ctx) {
             let p: Vec<f64> = vars
                 .iter()
                 .map(|v| {
-                    let scale = if v.nominal.is_finite() && v.nominal > 0.0 { v.nominal } else { 1.0 };
+                    let scale = if v.nominal.is_finite() && v.nominal > 0.0 {
+                        v.nominal
+                    } else {
+                        1.0
+                    };
                     scale * 10f64.powf(rng.unit() * 2.0 - 1.0)
                 })
                 .collect();
@@ -234,7 +240,11 @@ fn ln_ratio_at_equilibrium(
     let mut g = 0.0;
     for (i, v) in vars.iter().enumerate() {
         if let Some(n) = net.get(&v.id) {
-            let x = if scaled.contains(&i) { p[i] * ln_l.exp() } else { p[i] };
+            let x = if scaled.contains(&i) {
+                p[i] * ln_l.exp()
+            } else {
+                p[i]
+            };
             if x <= 0.0 {
                 return None;
             }
@@ -253,9 +263,21 @@ fn ratio_text(net: &BTreeMap<String, f64>) -> String {
             format!("[{s}]^{}", fmt_num(n.abs()))
         }
     };
-    let top: Vec<String> = net.iter().filter(|(_, n)| **n > 0.0).map(|(s, n)| term(s, *n)).collect();
-    let bottom: Vec<String> = net.iter().filter(|(_, n)| **n < 0.0).map(|(s, n)| term(s, *n)).collect();
-    let top = if top.is_empty() { "1".to_string() } else { top.join("*") };
+    let top: Vec<String> = net
+        .iter()
+        .filter(|(_, n)| **n > 0.0)
+        .map(|(s, n)| term(s, *n))
+        .collect();
+    let bottom: Vec<String> = net
+        .iter()
+        .filter(|(_, n)| **n < 0.0)
+        .map(|(s, n)| term(s, *n))
+        .collect();
+    let top = if top.is_empty() {
+        "1".to_string()
+    } else {
+        top.join("*")
+    };
     match bottom.len() {
         0 => top,
         1 => format!("{top}/{}", bottom[0]),
@@ -268,7 +290,11 @@ fn list(items: &[String]) -> String {
         [] => String::new(),
         [a] => a.clone(),
         [a, b] => format!("{a} and {b}"),
-        _ => format!("{} and {}", items[..items.len() - 1].join(", "), items[items.len() - 1]),
+        _ => format!(
+            "{} and {}",
+            items[..items.len() - 1].join(", "),
+            items[items.len() - 1]
+        ),
     }
 }
 
@@ -280,15 +306,21 @@ fn wegscheider(ctx: &mut Ctx, keq: &[(usize, f64)]) {
     }
     let reactions = &ctx.view.model.reactions;
     // Rows: every species (boundary included); columns: the reactions.
-    let nets: Vec<BTreeMap<String, f64>> =
-        keq.iter().map(|(i, _)| net_stoichiometry(&reactions[*i])).collect();
+    let nets: Vec<BTreeMap<String, f64>> = keq
+        .iter()
+        .map(|(i, _)| net_stoichiometry(&reactions[*i]))
+        .collect();
     let mut species: Vec<&String> = nets.iter().flat_map(|n| n.keys()).collect();
     species.sort();
     species.dedup();
     let k = keq.len();
     let mut a: Vec<Vec<f64>> = species
         .iter()
-        .map(|s| nets.iter().map(|n| n.get(*s).copied().unwrap_or(0.0)).collect())
+        .map(|s| {
+            nets.iter()
+                .map(|n| n.get(*s).copied().unwrap_or(0.0))
+                .collect()
+        })
         .collect();
     // Reduced row echelon form; null-space vectors from the free columns.
     let mut pivots: Vec<(usize, usize)> = Vec::new();
@@ -332,7 +364,11 @@ fn wegscheider(ctx: &mut Ctx, keq: &[(usize, f64)]) {
             c[pc] = -a[r][free];
         }
         // Scale so the smallest coefficient is 1 in size (often integers).
-        let min = c.iter().filter(|x| x.abs() > 1e-9).map(|x| x.abs()).fold(f64::INFINITY, f64::min);
+        let min = c
+            .iter()
+            .filter(|x| x.abs() > 1e-9)
+            .map(|x| x.abs())
+            .fold(f64::INFINITY, f64::min);
         for x in c.iter_mut() {
             *x /= min;
         }
@@ -358,7 +394,11 @@ fn wegscheider(ctx: &mut Ctx, keq: &[(usize, f64)]) {
             .map(|(j, (ci, ri, _))| {
                 let id = &reactions[*ri].id;
                 let mag = ci.abs();
-                let coef = if (mag - 1.0).abs() < 1e-9 { String::new() } else { format!("{} ", fmt_num(mag)) };
+                let coef = if (mag - 1.0).abs() < 1e-9 {
+                    String::new()
+                } else {
+                    format!("{} ", fmt_num(mag))
+                };
                 let sign = match (j, *ci < 0.0) {
                     (0, true) => "-".to_string(),
                     (0, false) => String::new(),
@@ -373,7 +413,10 @@ fn wegscheider(ctx: &mut Ctx, keq: &[(usize, f64)]) {
             .map(|(_, ri, lk)| format!("Keq({}) = {}", reactions[*ri].id, fmt_num(lk.exp())))
             .collect::<Vec<_>>()
             .join(", ");
-        let names: Vec<String> = members.iter().map(|(_, ri, _)| reactions[*ri].id.clone()).collect();
+        let names: Vec<String> = members
+            .iter()
+            .map(|(_, ri, _)| reactions[*ri].id.clone())
+            .collect();
         ctx.add(
             TD_WEGSCHEIDER,
             Severity::Warning,

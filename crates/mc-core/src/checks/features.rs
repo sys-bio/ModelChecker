@@ -56,9 +56,17 @@ fn fast(ctx: &mut Ctx) {
              differ between tools; SBML Level 3 Version 2 removed it. To be safe, write the \
              fast step as a rapid equilibrium explicitly (for example with an assignment rule \
              or large rate constants).",
-            if fast.len() == 1 { "One reaction is".to_string() } else { format!("{} reactions are", fast.len()) },
+            if fast.len() == 1 {
+                "One reaction is".to_string()
+            } else {
+                format!("{} reactions are", fast.len())
+            },
             list(&fast, 10),
-            if fast.len() == 1 { "it as an ordinary reaction" } else { "them as ordinary reactions" }
+            if fast.len() == 1 {
+                "it as an ordinary reaction"
+            } else {
+                "them as ordinary reactions"
+            }
         ),
         None,
     );
@@ -225,7 +233,11 @@ fn packages(ctx: &mut Ctx, namespaces: &[(Option<String>, String)]) {
     // Packages that change what the model means. Layout, render, groups
     // and fbc do not change a simulation.
     const PACKAGES: &[(&str, &str, &str)] = &[
-        ("/comp/", "comp", "hierarchical model composition (submodels)"),
+        (
+            "/comp/",
+            "comp",
+            "hierarchical model composition (submodels)",
+        ),
         ("/distrib/", "distrib", "random distributions"),
         ("/arrays/", "arrays", "arrays of elements"),
         ("/multi/", "multi", "multistate, multicomponent species"),
@@ -310,7 +322,11 @@ fn constraints(ctx: &mut Ctx) {
         format!(
             "The model has {} (conditions that should hold during a simulation). Few \
              simulators check them, so a run may break one without warning.",
-            if n == 1 { "a constraint".to_string() } else { format!("{n} constraints") }
+            if n == 1 {
+                "a constraint".to_string()
+            } else {
+                format!("{n} constraints")
+            }
         ),
         None,
     );

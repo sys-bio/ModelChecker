@@ -35,7 +35,10 @@ pub enum Element {
     Reaction(String),
     Species(String),
     Parameter(String),
-    LocalParameter { reaction: String, id: String },
+    LocalParameter {
+        reaction: String,
+        id: String,
+    },
     Compartment(String),
     FunctionDefinition(String),
     /// An assignment or rate rule, named by the variable it sets.

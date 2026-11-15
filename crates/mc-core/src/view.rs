@@ -174,7 +174,9 @@ impl<'m> View<'m> {
     /// Whether anything other than an assignment rule changes `id` during
     /// a simulation.
     fn changed(&self, id: &str) -> bool {
-        self.rate_rules.contains(id) || self.event_targets.contains(id) || self.algebraic.contains(id)
+        self.rate_rules.contains(id)
+            || self.event_targets.contains(id)
+            || self.algebraic.contains(id)
     }
 
     fn compute_ranges(&self) -> HashMap<String, Range> {
@@ -265,7 +267,8 @@ impl<'m> View<'m> {
         for s in &m.species {
             let v = nominal[&s.id];
             let held = s.boundary_condition == Some(true) || s.constant == Some(true);
-            let varies = self.changed(&s.id) || (!held && self.in_reactions.contains(s.id.as_str()));
+            let varies =
+                self.changed(&s.id) || (!held && self.in_reactions.contains(s.id.as_str()));
             let range = if v < 0.0 {
                 // A negative initial value (a voltage, a deviation from a
                 // reference): this species is not a concentration.
@@ -372,7 +375,9 @@ impl<'m> View<'m> {
                 _ => Math::Call(name.clone(), args.iter().map(rec).collect()),
             },
             Math::Apply(op, args) => Math::Apply(*op, args.iter().map(rec).collect()),
-            Math::CallSymbol(s, args) => Math::CallSymbol(s.clone(), args.iter().map(rec).collect()),
+            Math::CallSymbol(s, args) => {
+                Math::CallSymbol(s.clone(), args.iter().map(rec).collect())
+            }
             Math::Root { degree, arg } => Math::Root {
                 degree: degree.as_ref().map(|d| Box::new(rec(d))),
                 arg: Box::new(rec(arg)),

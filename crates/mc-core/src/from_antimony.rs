@@ -25,7 +25,12 @@ pub struct Edited {
     pub warnings: Vec<Finding>,
 }
 
-fn finding(code: &'static str, severity: Severity, message: String, line: Option<usize>) -> Finding {
+fn finding(
+    code: &'static str,
+    severity: Severity,
+    message: String,
+    line: Option<usize>,
+) -> Finding {
     Finding {
         code,
         severity,
@@ -52,7 +57,12 @@ pub fn apply_edit(original_xml: &str, edited: &str) -> Result<Edited, Vec<Findin
         }
     };
     let Some(orig_model) = &orig.model else {
-        return Err(vec![finding(SB_READ, Severity::Error, "The original document has no model.".into(), None)]);
+        return Err(vec![finding(
+            SB_READ,
+            Severity::Error,
+            "The original document has no model.".into(),
+            None,
+        )]);
     };
     let (prepared, map) = antimony_out::prepare(orig_model);
     let base_text = antimony_out::write(&prepared, &orig.namespaces).text;
@@ -68,10 +78,15 @@ pub fn apply_edit(original_xml: &str, edited: &str) -> Result<Edited, Vec<Findin
     for d in &mine.diagnostics {
         let line = (!d.span.is_unknown()).then_some(d.span.start.line as usize);
         match d.severity {
-            AntSeverity::Error => errors.push(finding(AN_ERROR, Severity::Error, d.message.clone(), line)),
-            AntSeverity::Warning if !base_warnings.contains(&d.message) => {
-                warnings.push(finding(AN_WARNING, Severity::Warning, d.message.clone(), line))
+            AntSeverity::Error => {
+                errors.push(finding(AN_ERROR, Severity::Error, d.message.clone(), line))
             }
+            AntSeverity::Warning if !base_warnings.contains(&d.message) => warnings.push(finding(
+                AN_WARNING,
+                Severity::Warning,
+                d.message.clone(),
+                line,
+            )),
             _ => {}
         }
     }
@@ -152,10 +167,18 @@ fn lines(m: &antimony::model::Module, map: &Mapping) -> Vec<(&'static str, Strin
         out.push((kind, id, l));
     };
     for s in &m.symbols {
-        let Some(l) = line(s.decl_span).or(line(s.span)) else { continue };
+        let Some(l) = line(s.decl_span).or(line(s.span)) else {
+            continue;
+        };
         // A symbol becomes one of these in SBML; findings name it by that
         // kind, so every kind points at the same line.
-        for kind in ["species", "parameter", "compartment", "rule", "initial assignment"] {
+        for kind in [
+            "species",
+            "parameter",
+            "compartment",
+            "rule",
+            "initial assignment",
+        ] {
             push(kind, &s.name, l);
         }
     }
@@ -230,7 +253,16 @@ mod tests {
         let m = e.document.model.as_ref().unwrap();
         assert_eq!(m.parameters[0].units.as_deref(), Some("per_s"));
         assert_eq!(m.species[0].name.as_deref(), Some("Substrate"));
-        assert_eq!(m.reactions[0].kinetic_law.as_ref().unwrap().meta.sbo_term.as_deref(), Some("SBO:0000049"));
+        assert_eq!(
+            m.reactions[0]
+                .kinetic_law
+                .as_ref()
+                .unwrap()
+                .meta
+                .sbo_term
+                .as_deref(),
+            Some("SBO:0000049")
+        );
     }
 
     #[test]
@@ -247,12 +279,16 @@ mod tests {
             assert!(t.contains(want), "missing {want:?} in:\n{t}");
         }
         // Change one SBO term: only it changes.
-        let e = apply_edit(XML, &t.replace("S.sboTerm = 247;", "S.sboTerm = 245;")).ok().unwrap();
+        let e = apply_edit(XML, &t.replace("S.sboTerm = 247;", "S.sboTerm = 245;"))
+            .ok()
+            .unwrap();
         let mut want = sbml_io::read(XML).unwrap().document;
         want.model.as_mut().unwrap().species[0].meta.sbo_term = Some("SBO:0000245".into());
         assert_eq!(sbml_io::write(&e.document), sbml_io::write(&want));
         // Change a parameter's units: only they change.
-        let e = apply_edit(XML, &t.replace("k has per_s;", "k has second;")).ok().unwrap();
+        let e = apply_edit(XML, &t.replace("k has per_s;", "k has second;"))
+            .ok()
+            .unwrap();
         let mut want = sbml_io::read(XML).unwrap().document;
         want.model.as_mut().unwrap().parameters[0].units = Some("second".into());
         assert_eq!(sbml_io::write(&e.document), sbml_io::write(&want));
@@ -275,20 +311,30 @@ mod tests {
         );
         let xml = sbml_io::write(&doc);
         let t = antimony_out::to_antimony(doc.model.as_ref().unwrap(), &doc.namespaces).text;
-        assert!(t.contains("S identity \"https://identifiers.org/CHEBI:15422\";"), "{t}");
+        assert!(
+            t.contains("S identity \"https://identifiers.org/CHEBI:15422\";"),
+            "{t}"
+        );
         // Unedited: the original exactly.
         let e = apply_edit(&xml, &t).ok().unwrap();
         assert_eq!(sbml_io::write(&e.document), xml);
         // Change S's link and give P one.
-        let edited = t
-            .replace("CHEBI:15422", "CHEBI:17234")
-            .replace("  // SBO terms:", "  P identity \"https://identifiers.org/CHEBI:4167\";\n\n  // SBO terms:");
+        let edited = t.replace("CHEBI:15422", "CHEBI:17234").replace(
+            "  // SBO terms:",
+            "  P identity \"https://identifiers.org/CHEBI:4167\";\n\n  // SBO terms:",
+        );
         let e = apply_edit(&xml, &edited).ok().unwrap();
         let m = e.document.model.as_ref().unwrap();
         let s = &m.species[0];
         let a = s.meta.annotation.as_deref().unwrap();
-        assert!(a.contains("CHEBI:17234") && !a.contains("CHEBI:15422"), "{a}");
-        assert!(a.contains("keep me"), "the other tool's annotation is kept: {a}");
+        assert!(
+            a.contains("CHEBI:17234") && !a.contains("CHEBI:15422"),
+            "{a}"
+        );
+        assert!(
+            a.contains("keep me"),
+            "the other tool's annotation is kept: {a}"
+        );
         assert_eq!(s.meta.metaid.as_deref(), Some("m_S"));
         let p = &m.species[1];
         assert!(p.meta.annotation.as_deref().unwrap().contains("CHEBI:4167"));
@@ -307,12 +353,26 @@ mod tests {
         assert!(t.contains("J1_kl = 2;"), "{t}");
         let edited = t.replace("J1_kl = 2;", "J1_kl = 3;");
         let e = apply_edit(XML, &edited).ok().unwrap();
-        let k = e.document.model.as_ref().unwrap().reactions[0].kinetic_law.clone().unwrap();
+        let k = e.document.model.as_ref().unwrap().reactions[0]
+            .kinetic_law
+            .clone()
+            .unwrap();
         assert_eq!(k.parameters.len(), 1);
-        assert_eq!((k.parameters[0].id.as_str(), k.parameters[0].value), ("kl", Some(3.0)));
+        assert_eq!(
+            (k.parameters[0].id.as_str(), k.parameters[0].value),
+            ("kl", Some(3.0))
+        );
         // The rate law still names the local parameter as `kl`.
         assert!(crate::fmt::infix(k.math.as_ref().unwrap()).contains("kl"));
-        assert!(!e.document.model.as_ref().unwrap().parameters.iter().any(|p| p.id == "J1_kl"));
+        assert!(
+            !e.document
+                .model
+                .as_ref()
+                .unwrap()
+                .parameters
+                .iter()
+                .any(|p| p.id == "J1_kl")
+        );
     }
 
     #[test]
@@ -330,9 +390,20 @@ mod tests {
         let t = text();
         let added = t.replace("  // Species", "  J2: P => ; k*P;\n\n  // Species");
         let e = apply_edit(XML, &added).ok().unwrap();
-        let ids: Vec<&str> = e.document.model.as_ref().unwrap().reactions.iter().map(|r| r.id.as_str()).collect();
+        let ids: Vec<&str> = e
+            .document
+            .model
+            .as_ref()
+            .unwrap()
+            .reactions
+            .iter()
+            .map(|r| r.id.as_str())
+            .collect();
         assert_eq!(ids, ["J1", "J2"]);
-        let line = t.lines().find(|l| l.trim_start().starts_with("J1:")).unwrap();
+        let line = t
+            .lines()
+            .find(|l| l.trim_start().starts_with("J1:"))
+            .unwrap();
         let deleted = t.replace(&format!("{line}\n"), "");
         let e = apply_edit(XML, &deleted).ok().unwrap();
         assert!(e.document.model.as_ref().unwrap().reactions.is_empty());
@@ -342,11 +413,23 @@ mod tests {
     fn findings_on_the_users_lines_and_errors() {
         let edited = text().replace("k*J1_kl*S", "k*J1_kl");
         let r = check_edit(XML, &edited);
-        let line = edited.lines().position(|l| l.trim_start().starts_with("J1:")).unwrap() + 1;
-        let f = r.findings.iter().find(|f| f.code == crate::codes::RL_ZERO_ORDER).expect("zero order");
+        let line = edited
+            .lines()
+            .position(|l| l.trim_start().starts_with("J1:"))
+            .unwrap()
+            + 1;
+        let f = r
+            .findings
+            .iter()
+            .find(|f| f.code == crate::codes::RL_ZERO_ORDER)
+            .expect("zero order");
         let a = r.antimony.as_ref().unwrap();
         assert_eq!(a.line_of(f.element.kind(), &f.element.id()), Some(line));
         let r = check_edit(XML, &text().replace("k*J1_kl*S;", "k*(J1_kl*S;"));
-        assert!(r.findings.iter().any(|f| f.code == AN_ERROR && f.line == Some(line)));
+        assert!(
+            r.findings
+                .iter()
+                .any(|f| f.code == AN_ERROR && f.line == Some(line))
+        );
     }
 }

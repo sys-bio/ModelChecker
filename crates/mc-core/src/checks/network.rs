@@ -53,7 +53,10 @@ pub fn check(ctx: &mut Ctx) {
             continue;
         }
         let in_reactions = m.reactions.iter().any(|r| {
-            r.reactants.iter().chain(&r.products).any(|x| x.species == id)
+            r.reactants
+                .iter()
+                .chain(&r.products)
+                .any(|x| x.species == id)
                 || r.modifiers.iter().any(|x| x.species == id)
         });
         if !in_reactions && !used.contains(id) {
@@ -86,21 +89,31 @@ pub fn check(ctx: &mut Ctx) {
                 }
             )
         },
-        |list| format!("These species are produced but never consumed, so they accumulate: {list}."),
+        |list| {
+            format!("These species are produced but never consumed, so they accumulate: {list}.")
+        },
     );
     report_species(
         ctx,
         NW_ONLY_CONSUMED,
         only_consumed,
         |s| format!("{s} is consumed but never produced, so it runs down over time."),
-        |list| format!("These species are consumed but never produced, so they run down over time: {list}."),
+        |list| {
+            format!(
+                "These species are consumed but never produced, so they run down over time: {list}."
+            )
+        },
     );
     report_species(
         ctx,
         NW_UNUSED_SPECIES,
         unused,
         |s| format!("{s} takes part in no reaction, rule or event, and nothing uses it."),
-        |list| format!("These species take part in no reaction, rule or event, and nothing uses them: {list}."),
+        |list| {
+            format!(
+                "These species take part in no reaction, rule or event, and nothing uses them: {list}."
+            )
+        },
     );
 
     disconnected(ctx);
@@ -210,7 +223,13 @@ fn report_species(
     many: impl Fn(&str) -> String,
 ) {
     if species.len() >= GROUP_AT {
-        ctx.add(code, Severity::Info, Element::Model, many(&species.join(", ")), None);
+        ctx.add(
+            code,
+            Severity::Info,
+            Element::Model,
+            many(&species.join(", ")),
+            None,
+        );
     } else {
         for s in species {
             let msg = one(&s);
@@ -243,7 +262,12 @@ fn disconnected(ctx: &mut Ctx) {
         return;
     }
     // Nodes: species, then reactions.
-    let index: HashMap<&str, usize> = m.species.iter().enumerate().map(|(i, s)| (s.id.as_str(), i)).collect();
+    let index: HashMap<&str, usize> = m
+        .species
+        .iter()
+        .enumerate()
+        .map(|(i, s)| (s.id.as_str(), i))
+        .collect();
     let ns = m.species.len();
     let mut parent: Vec<usize> = (0..ns + m.reactions.len()).collect();
     let union = |a: usize, b: usize, parent: &mut Vec<usize>| {
@@ -299,7 +323,11 @@ fn disconnected(ctx: &mut Ctx) {
         {
             ids.extend(species_in(x));
         }
-        ids.extend(e.assignments.iter().filter_map(|a| index.get(a.variable.as_str()).copied()));
+        ids.extend(
+            e.assignments
+                .iter()
+                .filter_map(|a| index.get(a.variable.as_str()).copied()),
+        );
         tie(ids, &mut parent);
     }
     // Parts with at least one reaction.
@@ -345,7 +373,11 @@ fn disconnected(ctx: &mut Ctx) {
              misspelt species.",
             parts.len(),
             shown.join("; "),
-            if more > 0 { format!("; and {more} more") } else { String::new() }
+            if more > 0 {
+                format!("; and {more} more")
+            } else {
+                String::new()
+            }
         ),
         None,
     );
@@ -370,7 +402,9 @@ fn reaction_species(
     let m = view.model;
     m.species
         .iter()
-        .filter(|s| view.in_reactions.contains(s.id.as_str()) && !held(&s.id) && !set_otherwise(&s.id))
+        .filter(|s| {
+            view.in_reactions.contains(s.id.as_str()) && !held(&s.id) && !set_otherwise(&s.id)
+        })
         .map(|s| {
             let x0 = view.range(&s.id).map(|r| r.nominal).unwrap_or(f64::NAN);
             let size = m
@@ -380,7 +414,11 @@ fn reaction_species(
                 .and_then(|c| view.range(&c.id).map(|r| r.nominal))
                 .unwrap_or(1.0);
             // Conservation is of amounts; a concentration times its size.
-            let scale = if s.has_only_substance_units == Some(true) { 1.0 } else { size };
+            let scale = if s.has_only_substance_units == Some(true) {
+                1.0
+            } else {
+                size
+            };
             (s.id.clone(), x0, scale)
         })
         .collect()
@@ -402,7 +440,12 @@ fn conservation(
     // conservation law c^T N = 0 (in amounts).
     let a: Vec<Vec<f64>> = nets
         .iter()
-        .map(|n| species.iter().map(|(s, _, _)| n.get(s).copied().unwrap_or(0.0)).collect())
+        .map(|n| {
+            species
+                .iter()
+                .map(|(s, _, _)| n.get(s).copied().unwrap_or(0.0))
+                .collect()
+        })
         .collect();
     let laws = null_space(a, species.len());
     // Tidying compares every pair of laws: fine for a few dozen, too slow
@@ -421,7 +464,11 @@ fn conservation(
         // Mostly positive reads best.
         let negatives = c.iter().filter(|x| **x < 0.0).count();
         let positives = c.iter().filter(|x| **x > 0.0).count();
-        let c: Vec<f64> = if negatives > positives { c.iter().map(|x| -x).collect() } else { c };
+        let c: Vec<f64> = if negatives > positives {
+            c.iter().map(|x| -x).collect()
+        } else {
+            c
+        };
         let mut text = String::new();
         let mut total = 0.0;
         let mut first = true;
@@ -430,7 +477,11 @@ fn conservation(
                 continue;
             }
             let mag = ci.abs();
-            let coef = if (mag - 1.0).abs() < 1e-9 { String::new() } else { format!("{}*", fmt_num(mag)) };
+            let coef = if (mag - 1.0).abs() < 1e-9 {
+                String::new()
+            } else {
+                format!("{}*", fmt_num(mag))
+            };
             let sign = match (first, *ci < 0.0) {
                 (true, true) => "-",
                 (true, false) => "",
@@ -451,7 +502,12 @@ fn conservation(
         lines.push(format!("{text}{total}"));
     }
     let n = lines.len();
-    let shown = lines.iter().take(10).cloned().collect::<Vec<_>>().join("\n");
+    let shown = lines
+        .iter()
+        .take(10)
+        .cloned()
+        .collect::<Vec<_>>()
+        .join("\n");
     let more = n.saturating_sub(10);
     ctx.add(
         NW_CONSERVED,
@@ -463,8 +519,16 @@ fn conservation(
             if n == 1 { "" } else { "s" },
             if n == 1 { "" } else { "s" },
             if single_size { "" } else { ", in amounts" },
-            if single_size { "" } else { "; each species' amount is its concentration times its compartment's size" },
-            if more > 0 { format!("\nand {more} more") } else { String::new() }
+            if single_size {
+                ""
+            } else {
+                "; each species' amount is its concentration times its compartment's size"
+            },
+            if more > 0 {
+                format!("\nand {more} more")
+            } else {
+                String::new()
+            }
         ),
         None,
     );
@@ -537,7 +601,11 @@ fn tidy(mut basis: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
                     continue;
                 }
                 for t in [1.0, -1.0, 2.0, -2.0] {
-                    let cand: Vec<f64> = basis[i].iter().zip(&basis[j]).map(|(a, b)| a + t * b).collect();
+                    let cand: Vec<f64> = basis[i]
+                        .iter()
+                        .zip(&basis[j])
+                        .map(|(a, b)| a + t * b)
+                        .collect();
                     if cand.iter().all(|x| x.abs() < 1e-9) {
                         continue;
                     }
@@ -584,18 +652,25 @@ fn never_present(
     let mut stuck: BTreeSet<String> = m
         .species
         .iter()
-        .filter(|s| view.in_reactions.contains(s.id.as_str()) && !set_otherwise(&s.id) && zero(&s.id))
+        .filter(|s| {
+            view.in_reactions.contains(s.id.as_str()) && !set_otherwise(&s.id) && zero(&s.id)
+        })
         .map(|s| s.id.clone())
         .collect();
     let fixed_zero: HashSet<String> = stuck.iter().filter(|s| held(s)).cloned().collect();
-    let laws: Vec<Option<sbml_io::Math>> =
-        m.reactions.iter().map(|r| super::expanded_rate(view, r)).collect();
+    let laws: Vec<Option<sbml_io::Math>> = m
+        .reactions
+        .iter()
+        .map(|r| super::expanded_rate(view, r))
+        .collect();
     // Which way a reaction can run with every stuck species at zero, asked
     // of its rate law (over all other non-negative states): forward
     // (making its products), backward (making its reactants), or not at
     // all. A rate law that ignores a reactant still runs without it.
     let can_run = |ri: usize, stuck: &BTreeSet<String>| -> (bool, bool) {
-        let Some(law) = &laws[ri] else { return (false, false) };
+        let Some(law) = &laws[ri] else {
+            return (false, false);
+        };
         let mut scope = super::scope::Scope::new(view);
         scope.locals = super::locals(&m.reactions[ri]);
         for s in stuck {
@@ -631,7 +706,10 @@ fn never_present(
         .iter()
         .enumerate()
         .filter(|(ri, r)| {
-            r.reactants.iter().chain(&r.products).any(|sr| stuck.contains(&sr.species))
+            r.reactants
+                .iter()
+                .chain(&r.products)
+                .any(|sr| stuck.contains(&sr.species))
                 && can_run(*ri, &final_stuck) == (false, false)
         })
         .map(|(_, r)| r.id.as_str())
@@ -648,7 +726,11 @@ fn never_present(
              value is probably missing, or a reaction that should start {} off.",
             abbreviate(&names, 12),
             if names.len() == 1 { "s" } else { "" },
-            if names.len() == 1 { "it" } else { "one of them" },
+            if names.len() == 1 {
+                "it"
+            } else {
+                "one of them"
+            },
             if names.len() == 1 { "it" } else { "they" },
             if names.len() == 1 { "is" } else { "are" },
             if names.len() == 1 { "it" } else { "they" },
@@ -658,7 +740,11 @@ fn never_present(
             } else {
                 format!(
                     ", and {} ({}) never run{}",
-                    if dead.len() == 1 { "the reaction involving it" } else { "the reactions involving them" },
+                    if dead.len() == 1 {
+                        "the reaction involving it"
+                    } else {
+                        "the reactions involving them"
+                    },
                     abbreviate(&dead, 10),
                     if dead.len() == 1 { "s" } else { "" }
                 )

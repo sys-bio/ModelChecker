@@ -36,7 +36,11 @@ pub fn check(ctx: &mut Ctx) {
     }
     for ia in &m.initial_assignments {
         if let Some(math) = &ia.math {
-            exprs.push((Element::InitialAssignment(ia.symbol.clone()), math, HashSet::new()));
+            exprs.push((
+                Element::InitialAssignment(ia.symbol.clone()),
+                math,
+                HashSet::new(),
+            ));
         }
     }
     for (i, e) in m.events.iter().enumerate() {
@@ -162,7 +166,11 @@ pub fn check(ctx: &mut Ctx) {
                     SY_SHADOWED,
                     Severity::Info,
                     el.clone(),
-                    format!("The local parameter hides the global {} `{}` inside this rate law.", kind_name(view.kinds[p.id.as_str()]), p.id),
+                    format!(
+                        "The local parameter hides the global {} `{}` inside this rate law.",
+                        kind_name(view.kinds[p.id.as_str()]),
+                        p.id
+                    ),
                     None,
                 );
             }

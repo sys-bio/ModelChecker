@@ -30,7 +30,12 @@ macro_rules! assert_has {
 }
 macro_rules! assert_not {
     ($r:expr, $code:expr) => {
-        assert!(!has(&$r, $code), "did not expect {} in:\n{}", $code, show(&$r))
+        assert!(
+            !has(&$r, $code),
+            "did not expect {} in:\n{}",
+            $code,
+            show(&$r)
+        )
     };
 }
 
@@ -39,7 +44,10 @@ fn show(r: &Report) -> String {
 }
 
 fn rate_law_codes(r: &Report) -> Vec<&'static str> {
-    codes(r).into_iter().filter(|c| c.starts_with("RL")).collect()
+    codes(r)
+        .into_iter()
+        .filter(|c| c.starts_with("RL"))
+        .collect()
 }
 
 #[test]
@@ -56,10 +64,8 @@ fn reversible_mass_action_is_clean() {
 
 #[test]
 fn reversible_michaelis_menten_is_clean() {
-    let r = run(
-        "J1: S -> P; (Vf*S/Ks - Vr*P/Kp)/(1 + S/Ks + P/Kp)\n\
-         S = 1; P = 0; Vf = 1; Vr = 0.5; Ks = 0.2; Kp = 0.3",
-    );
+    let r = run("J1: S -> P; (Vf*S/Ks - Vr*P/Kp)/(1 + S/Ks + P/Kp)\n\
+         S = 1; P = 0; Vf = 1; Vr = 0.5; Ks = 0.2; Kp = 0.3");
     assert!(rate_law_codes(&r).is_empty(), "{}", show(&r));
 }
 
@@ -75,7 +81,11 @@ fn zero_order() {
 fn missing_reactant() {
     let r = run("J1: A + B => C; k*A\nA = 1; B = 1; C = 0; k = 1");
     assert_has!(r, RL_MISSING_REACTANT);
-    assert!(r.findings.iter().any(|f| f.message.starts_with("The reaction consumes B")));
+    assert!(
+        r.findings
+            .iter()
+            .any(|f| f.message.starts_with("The reaction consumes B"))
+    );
     assert_not!(r, RL_ZERO_ORDER);
 }
 
@@ -83,7 +93,11 @@ fn missing_reactant() {
 fn constant_source() {
     let r = run("J1: => S1; v0\nS1 = 0; v0 = 1");
     assert_has!(r, RL_CONSTANT_SOURCE);
-    assert!(r.findings.iter().all(|f| f.severity != Severity::Error), "{}", show(&r));
+    assert!(
+        r.findings.iter().all(|f| f.severity != Severity::Error),
+        "{}",
+        show(&r)
+    );
 }
 
 #[test]
@@ -153,15 +167,11 @@ fn log_of_species() {
 
 #[test]
 fn through_function_definition() {
-    let clean = run(
-        "function MM(S, Vm, Km)\n  Vm*S/(Km + S)\nend\n\
-         J1: S => P; MM(S, Vm, Km)\nS = 1; P = 0; Vm = 1; Km = 0.5",
-    );
+    let clean = run("function MM(S, Vm, Km)\n  Vm*S/(Km + S)\nend\n\
+         J1: S => P; MM(S, Vm, Km)\nS = 1; P = 0; Vm = 1; Km = 0.5");
     assert!(rate_law_codes(&clean).is_empty(), "{}", show(&clean));
-    let zero = run(
-        "function f(k)\n  2*k\nend\n\
-         J1: S => P; f(k)\nS = 1; P = 0; k = 1",
-    );
+    let zero = run("function f(k)\n  2*k\nend\n\
+         J1: S => P; f(k)\nS = 1; P = 0; k = 1");
     assert_has!(zero, RL_ZERO_ORDER);
 }
 
@@ -174,10 +184,8 @@ fn through_assignment_rule() {
 
 #[test]
 fn singular_assignment_rule_reported_once() {
-    let r = run(
-        "x := 1/(S - P)\nJ1: S -> P; k*S*x\nJ2: S -> P; k*S*x\n\
-         S = 1; P = 0; k = 1",
-    );
+    let r = run("x := 1/(S - P)\nJ1: S -> P; k*S*x\nJ2: S -> P; k*S*x\n\
+         S = 1; P = 0; k = 1");
     let n = r.findings.iter().filter(|f| f.code == RL_SINGULAR).count();
     assert_eq!(n, 1, "{}", show(&r));
 }
@@ -215,11 +223,9 @@ fn unreadable_file() {
 #[test]
 fn conserved_total_in_denominator_is_not_singular() {
     // E + ES is conserved and starts positive, so E + ES never vanishes.
-    let r = run(
-        "J1: E + S -> ES; k1*E*S - k2*ES\n\
+    let r = run("J1: E + S -> ES; k1*E*S - k2*ES\n\
          J2: ES => E + P; k3*ES/(E + ES)\n\
-         E = 1; S = 10; ES = 0; P = 0; k1 = 1; k2 = 1; k3 = 1",
-    );
+         E = 1; S = 10; ES = 0; P = 0; k1 = 1; k2 = 1; k3 = 1");
     assert_not!(r, RL_SINGULAR);
     assert_not!(r, RL_SINGULAR_INITIAL);
 }
@@ -275,7 +281,10 @@ fn run_units(ant: &str, params: &[(&str, &str)]) -> Report {
         unit_def("per_s", &[("second", -1.0, 0)]),
         unit_def("M", &[("mole", 1.0, 0), ("litre", -1.0, 0)]),
         unit_def("mM", &[("mole", 1.0, -3), ("litre", -1.0, 0)]),
-        unit_def("M_per_s", &[("mole", 1.0, 0), ("litre", -1.0, 0), ("second", -1.0, 0)]),
+        unit_def(
+            "M_per_s",
+            &[("mole", 1.0, 0), ("litre", -1.0, 0), ("second", -1.0, 0)],
+        ),
     ];
     for (p, u) in params {
         let par = m.parameters.iter_mut().find(|x| x.id == *p).unwrap();
@@ -285,7 +294,10 @@ fn run_units(ant: &str, params: &[(&str, &str)]) -> Report {
 }
 
 fn unit_codes(r: &Report) -> Vec<&'static str> {
-    codes(r).into_iter().filter(|c| c.starts_with("UN")).collect()
+    codes(r)
+        .into_iter()
+        .filter(|c| c.starts_with("UN"))
+        .collect()
 }
 
 #[test]
@@ -380,11 +392,17 @@ fn units_coverage_without_units() {
 
 #[test]
 fn volume_heuristic_without_units() {
-    let r = run("compartment cell = 2\nspecies S in cell, P in cell\nJ1: S => P; k*S\nS = 1; P = 0; k = 1");
+    let r = run(
+        "compartment cell = 2\nspecies S in cell, P in cell\nJ1: S => P; k*S\nS = 1; P = 0; k = 1",
+    );
     assert_has!(r, UN_VOLUME_HEURISTIC);
-    let r = run("compartment cell = 2\nspecies S in cell, P in cell\nJ1: S => P; cell*k*S\nS = 1; P = 0; k = 1");
+    let r = run(
+        "compartment cell = 2\nspecies S in cell, P in cell\nJ1: S => P; cell*k*S\nS = 1; P = 0; k = 1",
+    );
     assert_not!(r, UN_VOLUME_HEURISTIC);
-    let r = run("compartment cell = 1\nspecies S in cell, P in cell\nJ1: S => P; k*S\nS = 1; P = 0; k = 1");
+    let r = run(
+        "compartment cell = 1\nspecies S in cell, P in cell\nJ1: S => P; k*S\nS = 1; P = 0; k = 1",
+    );
     assert_not!(r, UN_VOLUME_HEURISTIC);
 }
 
@@ -397,7 +415,11 @@ fn repeated_unit_findings_are_merged() {
          A = 1; B = 0; C = 0; D = 0; k = 1",
         &[("k", "per_s")],
     );
-    let v: Vec<_> = r.findings.iter().filter(|f| f.code == UN_MISSING_VOLUME).collect();
+    let v: Vec<_> = r
+        .findings
+        .iter()
+        .filter(|f| f.code == UN_MISSING_VOLUME)
+        .collect();
     assert_eq!(v.len(), 1, "{}", show(&r));
     assert_eq!(v[0].element, mc_core::Element::Model);
     assert!(v[0].message.starts_with("3 rate laws"), "{}", v[0].message);
@@ -409,7 +431,11 @@ fn repeated_unit_findings_are_merged() {
          J1: A => B; k*A\nJ2: B => C; k*B\nA = 1; B = 0; C = 0; k = 1",
         &[("k", "per_s")],
     );
-    let n = r.findings.iter().filter(|f| f.code == UN_MISSING_VOLUME).count();
+    let n = r
+        .findings
+        .iter()
+        .filter(|f| f.code == UN_MISSING_VOLUME)
+        .count();
     assert_eq!(n, 2, "{}", show(&r));
 }
 
@@ -424,7 +450,10 @@ fn run_sbo(ant: &str, sbo: &str) -> Report {
 }
 
 fn sbo_codes(r: &Report) -> Vec<&'static str> {
-    codes(r).into_iter().filter(|c| c.starts_with("SO")).collect()
+    codes(r)
+        .into_iter()
+        .filter(|c| c.starts_with("SO"))
+        .collect()
 }
 
 const MASS_ACTION_1: &str = "J1: S => P; k*S\nS = 1; P = 0; k = 1";
@@ -437,28 +466,43 @@ fn sbo_first_order_mass_action_fits() {
 
 #[test]
 fn sbo_mass_action_order_wrong() {
-    let r = run_sbo("species E\nJ1: S => P; k*S*E\nS = 1; P = 0; E = 1; k = 1", "SBO:0000049");
+    let r = run_sbo(
+        "species E\nJ1: S => P; k*S*E\nS = 1; P = 0; E = 1; k = 1",
+        "SBO:0000049",
+    );
     assert_has!(r, SO_MASS_ACTION_MISMATCH);
 }
 
 #[test]
 fn sbo_mass_action_against_stoichiometry() {
     // Second order, two reactants, but the reaction is 2 A -> C.
-    let r = run_sbo("J1: 2 A => C; k*A*B\nA = 1; B = 1; C = 0; k = 1", "SBO:0000054");
+    let r = run_sbo(
+        "J1: 2 A => C; k*A*B\nA = 1; B = 1; C = 0; k = 1",
+        "SBO:0000054",
+    );
     assert_has!(r, SO_MASS_ACTION_MISMATCH);
-    let r = run_sbo("J1: A + B => C; k*A*B\nA = 1; B = 1; C = 0; k = 1", "SBO:0000054");
+    let r = run_sbo(
+        "J1: A + B => C; k*A*B\nA = 1; B = 1; C = 0; k = 1",
+        "SBO:0000054",
+    );
     assert!(sbo_codes(&r).is_empty(), "{}", show(&r));
 }
 
 #[test]
 fn sbo_irreversible_but_negative() {
-    let r = run_sbo("J1: S -> P; k1*S - k2*P\nS = 1; P = 0; k1 = 1; k2 = 1", "SBO:0000049");
+    let r = run_sbo(
+        "J1: S -> P; k1*S - k2*P\nS = 1; P = 0; k1 = 1; k2 = 1",
+        "SBO:0000049",
+    );
     assert_has!(r, SO_IRREVERSIBLE_NEGATIVE);
 }
 
 #[test]
 fn sbo_reversible_mass_action() {
-    let r = run_sbo("J1: A -> B; k1*A - k2*B\nA = 1; B = 0; k1 = 1; k2 = 1", "SBO:0000080");
+    let r = run_sbo(
+        "J1: A -> B; k1*A - k2*B\nA = 1; B = 0; k1 = 1; k2 = 1",
+        "SBO:0000080",
+    );
     assert!(sbo_codes(&r).is_empty(), "{}", show(&r));
     let r = run_sbo("J1: A -> B; k1*A\nA = 1; B = 0; k1 = 1", "SBO:0000080");
     assert_has!(r, SO_REVERSIBLE_NEVER_NEGATIVE);
@@ -467,7 +511,10 @@ fn sbo_reversible_mass_action() {
 
 #[test]
 fn sbo_mass_action_term_on_michaelis_menten() {
-    let r = run_sbo("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 1", "SBO:0000049");
+    let r = run_sbo(
+        "J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 1",
+        "SBO:0000049",
+    );
     assert_has!(r, SO_NOT_MASS_ACTION);
 }
 
@@ -481,7 +528,10 @@ fn sbo_michaelis_menten() {
     // Hill needs a power.
     let r = run_sbo(mm, "SBO:0000192");
     assert_has!(r, SO_SHAPE_MISMATCH);
-    let r = run_sbo("J1: S => P; Vm*S^h/(K^h + S^h)\nS = 1; P = 0; Vm = 1; K = 1; h = 2", "SBO:0000192");
+    let r = run_sbo(
+        "J1: S => P; Vm*S^h/(K^h + S^h)\nS = 1; P = 0; Vm = 1; K = 1; h = 2",
+        "SBO:0000192",
+    );
     assert!(sbo_codes(&r).is_empty(), "{}", show(&r));
 }
 
@@ -500,7 +550,10 @@ fn sbo_wrong_branch_and_unknown() {
 #[test]
 fn sbo_mass_action_with_template_modifier() {
     // Translation from a template: first order in the modifier X.
-    let r = run_sbo("species X\nJ1: => P; k*X\nX = 1; P = 0; k = 1", "SBO:0000049");
+    let r = run_sbo(
+        "species X\nJ1: => P; k*X\nX = 1; P = 0; k = 1",
+        "SBO:0000049",
+    );
     assert_not!(r, SO_MASS_ACTION_MISMATCH);
 }
 
@@ -545,10 +598,8 @@ fn mass_action_order_skips_power_law() {
 
 #[test]
 fn haldane_consistent_laws() {
-    let r = run(
-        "J1: S -> P; (Vf*S/Ks - Vr*P/Kp)/(1 + S/Ks + P/Kp)\n\
-         S = 1; P = 0; Vf = 1; Vr = 0.5; Ks = 0.2; Kp = 0.3",
-    );
+    let r = run("J1: S -> P; (Vf*S/Ks - Vr*P/Kp)/(1 + S/Ks + P/Kp)\n\
+         S = 1; P = 0; Vf = 1; Vr = 0.5; Ks = 0.2; Kp = 0.3");
     assert_not!(r, TD_HALDANE);
     // An enzyme scaling both directions does not shift the equilibrium.
     let r = run("species E\nJ1: S -> P; E*(k1*S - k2*P)\nS = 1; P = 0; E = 1; k1 = 1; k2 = 2");
@@ -580,15 +631,19 @@ fn wegscheider_cycle() {
     // 2 * 3 * 1 = 6: the cycle would turn at equilibrium.
     let r = cycle("1");
     assert_has!(r, TD_WEGSCHEIDER);
-    assert!(r.findings.iter().any(|f| f.message.contains("multiply to 6")), "{}", show(&r));
+    assert!(
+        r.findings
+            .iter()
+            .any(|f| f.message.contains("multiply to 6")),
+        "{}",
+        show(&r)
+    );
 }
 
 #[test]
 fn wegscheider_ignores_paths_between_boundaries() {
-    let r = run(
-        "J1: $X -> A; k1*X - k1r*A\nJ2: A -> $Y; k2*A - k2r*Y\n\
-         X = 1; Y = 1; A = 1; k1 = 2; k1r = 1; k2 = 3; k2r = 1",
-    );
+    let r = run("J1: $X -> A; k1*X - k1r*A\nJ2: A -> $Y; k2*A - k2r*Y\n\
+         X = 1; Y = 1; A = 1; k1 = 2; k1r = 1; k2 = 3; k2r = 1");
     assert_not!(r, TD_WEGSCHEIDER);
 }
 
@@ -597,19 +652,39 @@ fn wegscheider_ignores_paths_between_boundaries() {
 #[test]
 fn only_produced_and_only_consumed() {
     let r = run("J1: S => P; k*S\nS = 10; P = 0; k = 1");
-    assert!(r.findings.iter().any(|f| f.code == NW_ONLY_PRODUCED && f.element == mc_core::Element::Species("P".into())), "{}", show(&r));
-    assert!(r.findings.iter().any(|f| f.code == NW_ONLY_CONSUMED && f.element == mc_core::Element::Species("S".into())), "{}", show(&r));
+    assert!(
+        r.findings
+            .iter()
+            .any(|f| f.code == NW_ONLY_PRODUCED
+                && f.element == mc_core::Element::Species("P".into())),
+        "{}",
+        show(&r)
+    );
+    assert!(
+        r.findings
+            .iter()
+            .any(|f| f.code == NW_ONLY_CONSUMED
+                && f.element == mc_core::Element::Species("S".into())),
+        "{}",
+        show(&r)
+    );
 }
 
 #[test]
 fn conserved_total() {
-    let r = run(
-        "J1: E + S -> ES; k1*E*S - k2*ES\nJ2: ES => E + P; k3*ES\n\
-         E = 1; S = 10; ES = 0; P = 0; k1 = 1; k2 = 1; k3 = 1",
-    );
-    let f = r.findings.iter().find(|f| f.code == NW_CONSERVED).unwrap_or_else(|| panic!("{}", show(&r)));
+    let r = run("J1: E + S -> ES; k1*E*S - k2*ES\nJ2: ES => E + P; k3*ES\n\
+         E = 1; S = 10; ES = 0; P = 0; k1 = 1; k2 = 1; k3 = 1");
+    let f = r
+        .findings
+        .iter()
+        .find(|f| f.code == NW_CONSERVED)
+        .unwrap_or_else(|| panic!("{}", show(&r)));
     // E + ES is conserved with total 1; S + ES + P with total 10.
-    assert!(f.message.contains("= 1\n") || f.message.ends_with("= 1"), "{}", f.message);
+    assert!(
+        f.message.contains("= 1\n") || f.message.ends_with("= 1"),
+        "{}",
+        f.message
+    );
     assert!(f.message.contains("= 10"), "{}", f.message);
 }
 
@@ -625,7 +700,11 @@ fn disconnected_network() {
 fn species_that_can_never_appear() {
     // X is autocatalytic and starts at zero: it can never appear.
     let r = run("J1: A + X => 2 X; k*A*X\nJ2: X => ; d*X\nA = 10; X = 0; k = 1; d = 0.1");
-    let f = r.findings.iter().find(|f| f.code == NW_NEVER_PRESENT).unwrap_or_else(|| panic!("{}", show(&r)));
+    let f = r
+        .findings
+        .iter()
+        .find(|f| f.code == NW_NEVER_PRESENT)
+        .unwrap_or_else(|| panic!("{}", show(&r)));
     assert!(f.message.starts_with("X starts at zero"), "{}", f.message);
     // With a seed of X it can.
     let r = run("J1: A + X => 2 X; k*A*X\nJ2: X => ; d*X\nA = 10; X = 0.01; k = 1; d = 0.1");
@@ -660,9 +739,17 @@ fn rules_in_a_loop() {
         }
     }
     let r = mc_core::check(&sbml_io::write(&d));
-    let f = r.findings.iter().find(|f| f.code == RU_RULE_LOOP).unwrap_or_else(|| panic!("{}", show(&r)));
+    let f = r
+        .findings
+        .iter()
+        .find(|f| f.code == RU_RULE_LOOP)
+        .unwrap_or_else(|| panic!("{}", show(&r)));
     assert_eq!(f.severity, Severity::Error);
-    assert!(f.message.contains("x depends on y") || f.message.contains("y depends on x"), "{}", f.message);
+    assert!(
+        f.message.contains("x depends on y") || f.message.contains("y depends on x"),
+        "{}",
+        f.message
+    );
     let r = run("x := y + 1\ny := 2*S\nJ1: S => P; k*S*x\nS = 1; P = 0; k = 1");
     assert_not!(r, RU_RULE_LOOP);
 }
@@ -689,7 +776,11 @@ fn species_in_reactions_set_by_a_rule() {
 fn constant_changed_by_an_event() {
     let mut d = doc("J1: S => P; k*S\nE1: at time > 5: k = 2\nS = 1; P = 0; k = 1");
     let m = d.model.as_mut().unwrap();
-    m.parameters.iter_mut().find(|p| p.id == "k").unwrap().constant = Some(true);
+    m.parameters
+        .iter_mut()
+        .find(|p| p.id == "k")
+        .unwrap()
+        .constant = Some(true);
     let r = mc_core::check(&sbml_io::write(&d));
     assert_has!(r, RU_CONSTANT_CHANGED);
 }
@@ -739,7 +830,10 @@ fn message_of<'r>(r: &'r Report, code: &str) -> &'r str {
 fn missing_database_links() {
     let r = run_annotated("is", "https://identifiers.org/CHEBI:15422");
     let m = message_of(&r, MD_NO_LINKS);
-    assert!(m.starts_with("1 of 2 species have no database links"), "{m}");
+    assert!(
+        m.starts_with("1 of 2 species have no database links"),
+        "{m}"
+    );
     assert!(m.contains(": P."), "{m}");
     assert_has!(r, MD_MODEL_INFO);
 }
@@ -761,15 +855,27 @@ fn good_links_pass() {
 fn broken_links() {
     // ChEBI ids carry their prefix: 15422 alone is not one.
     let r = run_annotated("is", "http://identifiers.org/chebi/15422");
-    assert!(message_of(&r, MD_BROKEN_LINK).contains("is not a ChEBI id"), "{}", show(&r));
+    assert!(
+        message_of(&r, MD_BROKEN_LINK).contains("is not a ChEBI id"),
+        "{}",
+        show(&r)
+    );
     let r = run_annotated("is", "https://identifiers.org/refseq_synonym/b0001");
-    assert!(message_of(&r, MD_BROKEN_LINK).contains("refseq_synonym (1)"), "{}", show(&r));
+    assert!(
+        message_of(&r, MD_BROKEN_LINK).contains("refseq_synonym (1)"),
+        "{}",
+        show(&r)
+    );
 }
 
 #[test]
 fn old_and_other_links() {
     let r = run_annotated("is", "urn:miriam:chebi:CHEBI%3A15422");
-    assert!(message_of(&r, MD_OLD_LINK).contains("urn:miriam"), "{}", show(&r));
+    assert!(
+        message_of(&r, MD_OLD_LINK).contains("urn:miriam"),
+        "{}",
+        show(&r)
+    );
     assert_not!(r, MD_BROKEN_LINK);
     let r = run_annotated("is", "http://example.org/glucose");
     assert_has!(r, MD_OTHER_LINK);
@@ -787,8 +893,10 @@ fn link_of_the_wrong_kind() {
 
 #[test]
 fn elements_without_names() {
-    let r = run("J1: species_0000001 => species_0000002; k*species_0000001\n\
-                 species_0000001 = 1; species_0000002 = 0; k = 1");
+    let r = run(
+        "J1: species_0000001 => species_0000002; k*species_0000001\n\
+                 species_0000001 = 1; species_0000002 = 0; k = 1",
+    );
     assert_has!(r, MD_NO_NAME);
     let r = run("J1: glucose => g6p; k*glucose\nglucose = 1; g6p = 0; k = 1");
     assert_not!(r, MD_NO_NAME);
@@ -800,7 +908,10 @@ fn elements_without_names() {
 /// checked, and the model itself has no reading or structure problems.
 #[test]
 fn jdesigner_model_checks_clean() {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../Examples/ConservedCycles.xml");
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../Examples/ConservedCycles.xml"
+    );
     let xml = std::fs::read_to_string(path).expect("Examples/ConservedCycles.xml");
     let r = mc_core::check(&xml);
     assert!(
@@ -815,13 +926,39 @@ fn jdesigner_model_checks_clean() {
 #[test]
 fn parameter_roles() {
     let r = run("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = -0.5");
-    assert!(r.findings.iter().any(|f| f.code == VA_ROLE && f.message.contains("`Km` is added to a concentration")), "{}", show(&r));
+    assert!(
+        r.findings
+            .iter()
+            .any(|f| f.code == VA_ROLE && f.message.contains("`Km` is added to a concentration")),
+        "{}",
+        show(&r)
+    );
     let r = run("J1: S => P; k*S\nS = 1; P = 0; k = -2");
-    assert!(r.findings.iter().any(|f| f.code == VA_ROLE && f.message.contains("`k` multiplies the rate")), "{}", show(&r));
+    assert!(
+        r.findings
+            .iter()
+            .any(|f| f.code == VA_ROLE && f.message.contains("`k` multiplies the rate")),
+        "{}",
+        show(&r)
+    );
     let r = run("J1: S => P; Vm*S^h/(K^h + S^h)\nS = 1; P = 0; Vm = 1; K = 1; h = 0");
-    assert!(r.findings.iter().any(|f| f.code == VA_ROLE && f.message.contains("Hill coefficient")), "{}", show(&r));
-    let r = run("J1: S => P; Vm*S/(Km + S)/(1 + I/Ki)\nspecies I\nS = 1; P = 0; I = 1; Vm = 1; Km = 1; Ki = 0");
-    assert!(r.findings.iter().any(|f| f.code == VA_ROLE && f.message.contains("`Ki` divides a concentration")), "{}", show(&r));
+    assert!(
+        r.findings
+            .iter()
+            .any(|f| f.code == VA_ROLE && f.message.contains("Hill coefficient")),
+        "{}",
+        show(&r)
+    );
+    let r = run(
+        "J1: S => P; Vm*S/(Km + S)/(1 + I/Ki)\nspecies I\nS = 1; P = 0; I = 1; Vm = 1; Km = 1; Ki = 0",
+    );
+    assert!(
+        r.findings
+            .iter()
+            .any(|f| f.code == VA_ROLE && f.message.contains("`Ki` divides a concentration")),
+        "{}",
+        show(&r)
+    );
     let r = run("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 0.5");
     assert_not!(r, VA_ROLE);
 }
@@ -829,7 +966,11 @@ fn parameter_roles() {
 #[test]
 fn reaction_switched_off() {
     let r = run("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 0; Km = 0.5");
-    assert!(message_of(&r, VA_SWITCHED_OFF).contains("because Vm is zero"), "{}", show(&r));
+    assert!(
+        message_of(&r, VA_SWITCHED_OFF).contains("because Vm is zero"),
+        "{}",
+        show(&r)
+    );
     let r = run("J1: S => P; Vm*S/(Km + S)\nS = 1; P = 0; Vm = 1; Km = 0.5");
     assert_not!(r, VA_SWITCHED_OFF);
 }
@@ -842,8 +983,19 @@ fn implausible_starting_values() {
     m.compartments[0].size = Some(0.0);
     m.parameters[0].value = Some(1e-30);
     let r = mc_core::check(&sbml_io::write(&d));
-    let codes: Vec<_> = r.findings.iter().filter(|f| f.code == VA_START).map(|f| f.severity).collect();
-    assert!(codes.contains(&Severity::Warning) && codes.contains(&Severity::Error) && codes.contains(&Severity::Info), "{}", show(&r));
+    let codes: Vec<_> = r
+        .findings
+        .iter()
+        .filter(|f| f.code == VA_START)
+        .map(|f| f.severity)
+        .collect();
+    assert!(
+        codes.contains(&Severity::Warning)
+            && codes.contains(&Severity::Error)
+            && codes.contains(&Severity::Info),
+        "{}",
+        show(&r)
+    );
 }
 
 #[test]
@@ -857,7 +1009,11 @@ fn wide_spread_of_rate_constants() {
 #[test]
 fn duplicate_reactions() {
     let r = run("J1: A => B; k*A\nJ2: A => B; k*A\nA = 1; B = 0; k = 1");
-    assert!(message_of(&r, VA_DUPLICATE).contains("same as J1"), "{}", show(&r));
+    assert!(
+        message_of(&r, VA_DUPLICATE).contains("same as J1"),
+        "{}",
+        show(&r)
+    );
     let r = run("J1: A => B; k*A\nJ2: A => B; k2*A\nA = 1; B = 0; k = 1; k2 = 2");
     assert_not!(r, VA_DUPLICATE);
 }
@@ -865,9 +1021,17 @@ fn duplicate_reactions() {
 #[test]
 fn conditions_always_or_never_true() {
     let r = run("J1: S => P; piecewise(k*S, S < 0, 0)\nS = 1; P = 0; k = 1");
-    assert!(message_of(&r, VA_CONDITION).contains("can never be true"), "{}", show(&r));
+    assert!(
+        message_of(&r, VA_CONDITION).contains("can never be true"),
+        "{}",
+        show(&r)
+    );
     let r = run("J1: S => P; piecewise(k*S, S >= 0, 0)\nS = 1; P = 0; k = 1");
-    assert!(message_of(&r, VA_CONDITION).contains("always true"), "{}", show(&r));
+    assert!(
+        message_of(&r, VA_CONDITION).contains("always true"),
+        "{}",
+        show(&r)
+    );
     // A condition that depends on the state is fine; so is a fixed switch.
     let r = run("J1: S => P; piecewise(k*S, S > 1, 0)\nS = 1; P = 0; k = 1");
     assert_not!(r, VA_CONDITION);
@@ -883,7 +1047,10 @@ fn fast_reactions_and_constraints() {
     let m = d.model.as_mut().unwrap();
     m.reactions[0].fast = Some(true);
     m.constraints.push(sbml_io::Constraint {
-        math: Some(sbml_io::Math::Apply(sbml_io::Op::Geq, vec![sbml_io::Math::ident("S"), sbml_io::Math::int(0)])),
+        math: Some(sbml_io::Math::Apply(
+            sbml_io::Op::Geq,
+            vec![sbml_io::Math::ident("S"), sbml_io::Math::int(0)],
+        )),
         ..Default::default()
     });
     // Fast reactions exist up to Level 3 Version 1.
@@ -901,7 +1068,11 @@ fn delays_and_newer_maths() {
     let r = run("J1: S => P; k*delay(S, 2)\nS = 1; P = 0; k = 1");
     assert_has!(r, FT_DELAY);
     let r = run("J1: S => P; k*max(S, 0.1)\nS = 1; P = 0; k = 1");
-    assert!(message_of(&r, FT_NEWER_MATH).contains("`max`"), "{}", show(&r));
+    assert!(
+        message_of(&r, FT_NEWER_MATH).contains("`max`"),
+        "{}",
+        show(&r)
+    );
 }
 
 #[test]
@@ -921,8 +1092,15 @@ fn variable_stoichiometry() {
 #[test]
 fn comp_package() {
     let mut d = doc("J1: S => P; k*S\nS = 1; P = 0; k = 1");
-    d.namespaces.push((Some("comp".into()), "http://www.sbml.org/sbml/level3/version1/comp/version1".into()));
+    d.namespaces.push((
+        Some("comp".into()),
+        "http://www.sbml.org/sbml/level3/version1/comp/version1".into(),
+    ));
     let r = mc_core::check(&sbml_io::write(&d));
-    let f = r.findings.iter().find(|f| f.code == FT_PACKAGE).unwrap_or_else(|| panic!("{}", show(&r)));
+    let f = r
+        .findings
+        .iter()
+        .find(|f| f.code == FT_PACKAGE)
+        .unwrap_or_else(|| panic!("{}", show(&r)));
     assert_eq!(f.severity, Severity::Warning);
 }

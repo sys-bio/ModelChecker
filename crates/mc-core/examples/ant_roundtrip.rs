@@ -4,7 +4,9 @@
 //! cargo run --release -p mc-core --example ant_roundtrip -- FOLDER
 
 fn main() {
-    let dir = std::env::args().nth(1).expect("usage: ant_roundtrip FOLDER");
+    let dir = std::env::args()
+        .nth(1)
+        .expect("usage: ant_roundtrip FOLDER");
     let mut files: Vec<_> = std::fs::read_dir(&dir)
         .expect("cannot read folder")
         .flatten()
@@ -14,9 +16,15 @@ fn main() {
     files.sort();
     let (mut ok, mut bad) = (0, 0);
     for f in &files {
-        let Ok(xml) = std::fs::read_to_string(f) else { continue };
-        let Ok(read) = sbml_io::read(&xml) else { continue };
-        let Some(model) = &read.document.model else { continue };
+        let Ok(xml) = std::fs::read_to_string(f) else {
+            continue;
+        };
+        let Ok(read) = sbml_io::read(&xml) else {
+            continue;
+        };
+        let Some(model) = &read.document.model else {
+            continue;
+        };
         let text = mc_core::antimony_out::to_antimony(model, &read.document.namespaces).text;
         let loaded = antimony::parse(&text);
         if loaded.has_errors() {

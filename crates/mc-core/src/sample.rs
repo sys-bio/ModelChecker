@@ -22,9 +22,8 @@ pub struct Var {
 pub fn points(vars: &[Var], extras: &[f64], budget: usize) -> Vec<Vec<f64>> {
     let n = vars.len();
     let mut out: Vec<Vec<f64>> = Vec::new();
-    let clamp = |v: &Var, x: f64| -> Option<f64> {
-        (x.is_finite() && v.interval.contains(x)).then_some(x)
-    };
+    let clamp =
+        |v: &Var, x: f64| -> Option<f64> { (x.is_finite() && v.interval.contains(x)).then_some(x) };
     let base_nominal: Vec<f64> = vars
         .iter()
         .map(|v| clamp(v, v.nominal).unwrap_or_else(|| low(v)))
@@ -76,9 +75,7 @@ pub fn points(vars: &[Var], extras: &[f64], budget: usize) -> Vec<Vec<f64>> {
                     0 => 0.0,
                     1 if !extras.is_empty() => extras[(r >> 8) as usize % extras.len()],
                     // Spread evenly through a bounded range...
-                    2 if bounded => {
-                        v.interval.lo + rng.unit() * (v.interval.hi - v.interval.lo)
-                    }
+                    2 if bounded => v.interval.lo + rng.unit() * (v.interval.hi - v.interval.lo),
                     // ...and over orders of magnitude otherwise.
                     _ => 10f64.powf(rng.unit() * 8.0 - 4.0),
                 };

@@ -59,10 +59,40 @@ fn body(m: &Math) -> &Math {
 /// Words Antimony reserves, which an SBML id may still be. `compartment`
 /// is a common one: several tools give it as the default compartment's id.
 const RESERVED: &[&str] = &[
-    "DNA", "after", "at", "avogadro", "compartment", "const", "delete", "end", "event", "ext",
-    "formula", "fromTrigger", "function", "gene", "has", "import", "in", "inf", "infinity", "is",
-    "model", "module", "nan", "notanumber", "operator", "persistent", "priority", "reaction",
-    "species", "substanceOnly", "t0", "time", "unit", "var",
+    "DNA",
+    "after",
+    "at",
+    "avogadro",
+    "compartment",
+    "const",
+    "delete",
+    "end",
+    "event",
+    "ext",
+    "formula",
+    "fromTrigger",
+    "function",
+    "gene",
+    "has",
+    "import",
+    "in",
+    "inf",
+    "infinity",
+    "is",
+    "model",
+    "module",
+    "nan",
+    "notanumber",
+    "operator",
+    "persistent",
+    "priority",
+    "reaction",
+    "species",
+    "substanceOnly",
+    "t0",
+    "time",
+    "unit",
+    "var",
 ];
 
 /// A number written so that it reads back as exactly the same value.
@@ -135,7 +165,12 @@ fn all_ids(model: &Model) -> HashSet<String> {
     ids.extend(model.reactions.iter().map(|r| r.id.clone()));
     ids.extend(model.events.iter().filter_map(|e| e.id.clone()));
     for r in &model.reactions {
-        ids.extend(r.kinetic_law.iter().flat_map(|k| &k.parameters).map(|p| p.id.clone()));
+        ids.extend(
+            r.kinetic_law
+                .iter()
+                .flat_map(|k| &k.parameters)
+                .map(|p| p.id.clone()),
+        );
     }
     ids
 }
@@ -146,7 +181,9 @@ fn globalize(model: &Model) -> (Model, Vec<Local>) {
     let mut used = all_ids(model);
     let mut locals = Vec::new();
     for r in &mut m.reactions {
-        let Some(k) = &mut r.kinetic_law else { continue };
+        let Some(k) = &mut r.kinetic_law else {
+            continue;
+        };
         let mut map: HashMap<String, String> = HashMap::new();
         for p in std::mem::take(&mut k.parameters) {
             let mut global = format!("{}_{}", r.id, p.id);
@@ -211,7 +248,12 @@ fn keyword_map(model: &Model) -> HashMap<String, String> {
     ids.extend(model.parameters.iter().map(|p| p.id.as_str()));
     ids.extend(model.reactions.iter().map(|r| r.id.as_str()));
     for r in &model.reactions {
-        ids.extend(r.kinetic_law.iter().flat_map(|k| &k.parameters).map(|p| p.id.as_str()));
+        ids.extend(
+            r.kinetic_law
+                .iter()
+                .flat_map(|k| &k.parameters)
+                .map(|p| p.id.as_str()),
+        );
     }
     ids.extend(model.events.iter().filter_map(|e| e.id.as_deref()));
     // Function arguments too: they are local, but are written out.
@@ -376,7 +418,11 @@ pub fn write(model: &Model, namespaces: &[(Option<String>, String)]) -> Antimony
         let Some(Math::Lambda { args, body: b }) = f.math.as_ref().map(body) else {
             continue;
         };
-        o.push_for("function", &f.id, &format!("function {}({})", f.id, args.join(", ")));
+        o.push_for(
+            "function",
+            &f.id,
+            &format!("function {}({})", f.id, args.join(", ")),
+        );
         o.push(&format!("  {}", infix(b)));
         o.push("end");
         o.blank();
@@ -417,7 +463,10 @@ pub fn write(model: &Model, namespaces: &[(Option<String>, String)]) -> Antimony
         }
         if !model_units.is_empty() {
             // Antimony has no way to say these; shown for reading.
-            o.push(&format!("  // Model units (not editable here): {}", model_units.join(", ")));
+            o.push(&format!(
+                "  // Model units (not editable here): {}",
+                model_units.join(", ")
+            ));
         }
     }
 
@@ -476,7 +525,11 @@ pub fn write(model: &Model, namespaces: &[(Option<String>, String)]) -> Antimony
                     .collect::<Vec<_>>()
                     .join(" + ")
             };
-            let arrow = if r.reversible == Some(false) { "=>" } else { "->" };
+            let arrow = if r.reversible == Some(false) {
+                "=>"
+            } else {
+                "->"
+            };
             let lhs = side(&r.reactants);
             let rhs = side(&r.products);
             let law = r
@@ -539,7 +592,11 @@ pub fn write(model: &Model, namespaces: &[(Option<String>, String)]) -> Antimony
         o.push("  // Algebraic rules:");
         for (i, r) in algebraic {
             if let Some(m) = r.math() {
-                o.push_for("algebraic rule", &format!("#{}", i + 1), &format!("  0 = {};", infix(m)));
+                o.push_for(
+                    "algebraic rule",
+                    &format!("#{}", i + 1),
+                    &format!("  0 = {};", infix(m)),
+                );
             }
         }
     }
@@ -604,13 +661,20 @@ pub fn write(model: &Model, namespaces: &[(Option<String>, String)]) -> Antimony
             o.push_for("species", &s.id, &line);
         }
     }
-    let sized: Vec<&sbml_io::Compartment> =
-        model.compartments.iter().filter(|c| c.size.is_some()).collect();
+    let sized: Vec<&sbml_io::Compartment> = model
+        .compartments
+        .iter()
+        .filter(|c| c.size.is_some())
+        .collect();
     if !sized.is_empty() {
         o.blank();
         o.push("  // Compartment initializations:");
         for c in sized {
-            o.push_for("compartment", &c.id, &format!("  {} = {};", c.id, exact(c.size.unwrap())));
+            o.push_for(
+                "compartment",
+                &c.id,
+                &format!("  {} = {};", c.id, exact(c.size.unwrap())),
+            );
         }
     }
     if !model.parameters.is_empty() {
@@ -674,13 +738,20 @@ pub fn write(model: &Model, namespaces: &[(Option<String>, String)]) -> Antimony
     // `S identity "https://identifiers.org/CHEBI:17234", "..."`.
     let mut link_lines: Vec<String> = Vec::new();
     let mut add_links = |id: &str, meta: &sbml_io::Meta| {
-        let Some(xml) = meta.annotation.as_deref() else { return };
+        let Some(xml) = meta.annotation.as_deref() else {
+            return;
+        };
         let a = sbml_io::miriam::read_annotation(xml, namespaces);
-        for t in a.terms.iter().filter(|t| !t.model && !t.resources.is_empty()) {
+        for t in a
+            .terms
+            .iter()
+            .filter(|t| !t.model && !t.resources.is_empty())
+        {
             let quoted = t.resources.iter().all(|r| !r.contains('"'));
             match qualifier_keyword(&t.qualifier) {
                 Some(k) if quoted => {
-                    let uris: Vec<String> = t.resources.iter().map(|r| format!("\"{r}\"")).collect();
+                    let uris: Vec<String> =
+                        t.resources.iter().map(|r| format!("\"{r}\"")).collect();
                     link_lines.push(format!("  {id} {k} {};", uris.join(", ")));
                 }
                 _ => link_lines.push(format!(
@@ -755,7 +826,11 @@ pub fn write(model: &Model, namespaces: &[(Option<String>, String)]) -> Antimony
         .iter()
         .filter_map(|r| {
             let t = sbo(&r.kinetic_law.as_ref()?.meta)?;
-            Some(format!("  // {} rate law: {}", r.id, crate::sbo::describe(t)))
+            Some(format!(
+                "  // {} rate law: {}",
+                r.id,
+                crate::sbo::describe(t)
+            ))
         })
         .collect();
     if !terms.is_empty() || !rate_laws.is_empty() {
@@ -888,6 +963,9 @@ mod tests {
         assert!(a.text.contains("  species $P in c;"), "{}", a.text);
         assert!(a.text.contains("  k = 0.5;"), "{}", a.text);
         let line = a.line_of("reaction", "J1").unwrap();
-        assert_eq!(a.text.lines().nth(line - 1).unwrap(), "  J1: 2 S => $P; k*S;");
+        assert_eq!(
+            a.text.lines().nth(line - 1).unwrap(),
+            "  J1: 2 S => $P; k*S;"
+        );
     }
 }

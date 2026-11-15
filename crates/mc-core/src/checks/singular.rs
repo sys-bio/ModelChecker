@@ -29,7 +29,14 @@ pub fn check(ctx: &mut Ctx) {
         };
         let expanded = view.expand(math, &HashSet::new());
         let scope = Scope::new(view);
-        let found = examine(ctx, &scope, &expanded, Element::Rule(var.to_string()), what, &HashSet::new());
+        let found = examine(
+            ctx,
+            &scope,
+            &expanded,
+            Element::Rule(var.to_string()),
+            what,
+            &HashSet::new(),
+        );
         from_rules.extend(found);
     }
 
@@ -39,7 +46,14 @@ pub fn check(ctx: &mut Ctx) {
         };
         let mut scope = Scope::new(view);
         scope.locals = locals(r);
-        examine(ctx, &scope, &expanded, Element::Reaction(r.id.clone()), "rate law", &from_rules);
+        examine(
+            ctx,
+            &scope,
+            &expanded,
+            Element::Reaction(r.id.clone()),
+            "rate law",
+            &from_rules,
+        );
     }
 }
 

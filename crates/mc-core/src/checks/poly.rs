@@ -84,7 +84,9 @@ pub fn monomials(
                 return None;
             }
             let base = rec(a)?;
-            let [(s, e)] = base.as_slice() else { return None };
+            let [(s, e)] = base.as_slice() else {
+                return None;
+            };
             let sign = if *s < 0.0 {
                 if p.fract() != 0.0 {
                     return None;

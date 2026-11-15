@@ -105,7 +105,8 @@ fn power_law(m: &Math, is_species: &dyn Fn(&str) -> bool) -> bool {
     match m {
         Math::Apply(Op::Power, args) if args.len() == 2 => {
             let base_species = free_symbols(&args[0]).iter().any(|s| is_species(s));
-            let whole = matches!(&args[1], Math::Number { value, .. } if value.value().fract() == 0.0);
+            let whole =
+                matches!(&args[1], Math::Number { value, .. } if value.value().fract() == 0.0);
             (base_species && !whole) || args.iter().any(|a| power_law(a, is_species))
         }
         Math::Root { arg, .. } => {
@@ -130,7 +131,12 @@ fn stoichiometry(refs: &[sbml_io::SpeciesReference]) -> BTreeMap<&str, f64> {
 /// Each participant that appears in the term should do so to the power of
 /// its stoichiometry. A participant missing from the term altogether is
 /// RL006's business (a reactant) or simply irreversibility (a product).
-fn compare(problems: &mut Vec<String>, term: &Mono, participants: &BTreeMap<&str, f64>, role: &str) {
+fn compare(
+    problems: &mut Vec<String>,
+    term: &Mono,
+    participants: &BTreeMap<&str, f64>,
+    role: &str,
+) {
     // A term with none of this side's species is not that side's term
     // (a zero-order forward rate, a reverse term on modifiers).
     if !participants.keys().any(|s| term.1.contains_key(*s)) {

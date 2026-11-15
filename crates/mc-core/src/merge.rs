@@ -46,23 +46,71 @@ pub fn merge(orig: &Document, base: &Model, mine: &Model) -> Document {
         }))
         .collect();
     let derived = &derived;
-    merge_list(&mut m.function_definitions, &base.function_definitions, &mine.function_definitions, |f, _| f.id.clone(), update_function);
-    merge_list(&mut m.unit_definitions, &base.unit_definitions, &mine.unit_definitions, |u, _| u.id.clone(), |o, b, n| {
-        set(&mut o.units, &b.units, &n.units);
-    });
-    merge_list(&mut m.compartments, &base.compartments, &mine.compartments, |c, _| c.id.clone(), |o, b, n| {
-        update_compartment(o, b, n, derived.contains(&n.id))
-    });
-    merge_list(&mut m.species, &base.species, &mine.species, |s, _| s.id.clone(), |o, b, n| {
-        update_species(o, b, n, derived.contains(&n.id))
-    });
-    merge_list(&mut m.parameters, &base.parameters, &mine.parameters, |p, _| p.id.clone(), |o, b, n| {
-        update_parameter(o, b, n, derived.contains(&n.id))
-    });
-    merge_list(&mut m.initial_assignments, &base.initial_assignments, &mine.initial_assignments, |a, _| a.symbol.clone(), update_initial_assignment);
-    merge_list(&mut m.rules, &base.rules, &mine.rules, rule_key, update_rule);
-    merge_list(&mut m.reactions, &base.reactions, &mine.reactions, |r, _| r.id.clone(), update_reaction);
-    merge_list(&mut m.events, &base.events, &mine.events, event_key, update_event);
+    merge_list(
+        &mut m.function_definitions,
+        &base.function_definitions,
+        &mine.function_definitions,
+        |f, _| f.id.clone(),
+        update_function,
+    );
+    merge_list(
+        &mut m.unit_definitions,
+        &base.unit_definitions,
+        &mine.unit_definitions,
+        |u, _| u.id.clone(),
+        |o, b, n| {
+            set(&mut o.units, &b.units, &n.units);
+        },
+    );
+    merge_list(
+        &mut m.compartments,
+        &base.compartments,
+        &mine.compartments,
+        |c, _| c.id.clone(),
+        |o, b, n| update_compartment(o, b, n, derived.contains(&n.id)),
+    );
+    merge_list(
+        &mut m.species,
+        &base.species,
+        &mine.species,
+        |s, _| s.id.clone(),
+        |o, b, n| update_species(o, b, n, derived.contains(&n.id)),
+    );
+    merge_list(
+        &mut m.parameters,
+        &base.parameters,
+        &mine.parameters,
+        |p, _| p.id.clone(),
+        |o, b, n| update_parameter(o, b, n, derived.contains(&n.id)),
+    );
+    merge_list(
+        &mut m.initial_assignments,
+        &base.initial_assignments,
+        &mine.initial_assignments,
+        |a, _| a.symbol.clone(),
+        update_initial_assignment,
+    );
+    merge_list(
+        &mut m.rules,
+        &base.rules,
+        &mine.rules,
+        rule_key,
+        update_rule,
+    );
+    merge_list(
+        &mut m.reactions,
+        &base.reactions,
+        &mine.reactions,
+        |r, _| r.id.clone(),
+        update_reaction,
+    );
+    merge_list(
+        &mut m.events,
+        &base.events,
+        &mine.events,
+        event_key,
+        update_event,
+    );
     merge_links(m, base, mine, &orig.namespaces);
     doc
 }
@@ -95,8 +143,16 @@ fn merge_links(m: &mut Model, base: &Model, mine: &Model, namespaces: &[(Option<
         rewrite_links(id, meta, nt, namespaces, &mut metaids);
     };
     for c in &mut m.compartments {
-        let b = base.compartments.iter().find(|x| x.id == c.id).map(|x| &x.meta);
-        let n = mine.compartments.iter().find(|x| x.id == c.id).map(|x| &x.meta);
+        let b = base
+            .compartments
+            .iter()
+            .find(|x| x.id == c.id)
+            .map(|x| &x.meta);
+        let n = mine
+            .compartments
+            .iter()
+            .find(|x| x.id == c.id)
+            .map(|x| &x.meta);
         apply(&c.id.clone(), &mut c.meta, b, n);
     }
     for s in &mut m.species {
@@ -105,13 +161,29 @@ fn merge_links(m: &mut Model, base: &Model, mine: &Model, namespaces: &[(Option<
         apply(&s.id.clone(), &mut s.meta, b, n);
     }
     for p in &mut m.parameters {
-        let b = base.parameters.iter().find(|x| x.id == p.id).map(|x| &x.meta);
-        let n = mine.parameters.iter().find(|x| x.id == p.id).map(|x| &x.meta);
+        let b = base
+            .parameters
+            .iter()
+            .find(|x| x.id == p.id)
+            .map(|x| &x.meta);
+        let n = mine
+            .parameters
+            .iter()
+            .find(|x| x.id == p.id)
+            .map(|x| &x.meta);
         apply(&p.id.clone(), &mut p.meta, b, n);
     }
     for r in &mut m.reactions {
-        let b = base.reactions.iter().find(|x| x.id == r.id).map(|x| &x.meta);
-        let n = mine.reactions.iter().find(|x| x.id == r.id).map(|x| &x.meta);
+        let b = base
+            .reactions
+            .iter()
+            .find(|x| x.id == r.id)
+            .map(|x| &x.meta);
+        let n = mine
+            .reactions
+            .iter()
+            .find(|x| x.id == r.id)
+            .map(|x| &x.meta);
         apply(&r.id.clone(), &mut r.meta, b, n);
     }
 }
@@ -213,10 +285,7 @@ fn merge_list<T: Clone + PartialEq>(
         if base_k.contains_key(&k) {
             continue;
         }
-        let present = orig
-            .iter()
-            .enumerate()
-            .any(|(i, x)| key(x, i) == k);
+        let present = orig.iter().enumerate().any(|(i, x)| key(x, i) == k);
         if !present {
             orig.push(mine[mi].clone());
         }
@@ -251,7 +320,11 @@ fn update_compartment(o: &mut Compartment, b: &Compartment, m: &Compartment, der
         set_value(&mut o.size, &b.size, &m.size);
     }
     set(&mut o.constant, &b.constant, &m.constant);
-    set(&mut o.spatial_dimensions, &b.spatial_dimensions, &m.spatial_dimensions);
+    set(
+        &mut o.spatial_dimensions,
+        &b.spatial_dimensions,
+        &m.spatial_dimensions,
+    );
     set(&mut o.units, &b.units, &m.units);
     set(&mut o.meta.sbo_term, &b.meta.sbo_term, &m.meta.sbo_term);
 }
@@ -266,10 +339,22 @@ fn update_species(o: &mut Species, b: &Species, m: &Species, derived: bool) {
         o.initial_amount = m.initial_amount;
         o.initial_concentration = m.initial_concentration;
     }
-    set(&mut o.boundary_condition, &b.boundary_condition, &m.boundary_condition);
+    set(
+        &mut o.boundary_condition,
+        &b.boundary_condition,
+        &m.boundary_condition,
+    );
     set(&mut o.constant, &b.constant, &m.constant);
-    set(&mut o.has_only_substance_units, &b.has_only_substance_units, &m.has_only_substance_units);
-    set(&mut o.substance_units, &b.substance_units, &m.substance_units);
+    set(
+        &mut o.has_only_substance_units,
+        &b.has_only_substance_units,
+        &m.has_only_substance_units,
+    );
+    set(
+        &mut o.substance_units,
+        &b.substance_units,
+        &m.substance_units,
+    );
     set(&mut o.meta.sbo_term, &b.meta.sbo_term, &m.meta.sbo_term);
 }
 
@@ -282,7 +367,11 @@ fn update_parameter(o: &mut Parameter, b: &Parameter, m: &Parameter, derived: bo
     set(&mut o.meta.sbo_term, &b.meta.sbo_term, &m.meta.sbo_term);
 }
 
-fn update_initial_assignment(o: &mut InitialAssignment, b: &InitialAssignment, m: &InitialAssignment) {
+fn update_initial_assignment(
+    o: &mut InitialAssignment,
+    b: &InitialAssignment,
+    m: &InitialAssignment,
+) {
     set(&mut o.math, &b.math, &m.math);
 }
 
@@ -342,7 +431,13 @@ fn update_reaction(o: &mut Reaction, b: &Reaction, m: &Reaction) {
 
 fn update_kinetic_law(o: &mut KineticLaw, b: &KineticLaw, m: &KineticLaw) {
     set(&mut o.math, &b.math, &m.math);
-    merge_list(&mut o.parameters, &b.parameters, &m.parameters, |p, _| p.id.clone(), update_local);
+    merge_list(
+        &mut o.parameters,
+        &b.parameters,
+        &m.parameters,
+        |p, _| p.id.clone(),
+        update_local,
+    );
 }
 
 fn update_local(o: &mut LocalParameter, b: &LocalParameter, m: &LocalParameter) {
@@ -351,7 +446,9 @@ fn update_local(o: &mut LocalParameter, b: &LocalParameter, m: &LocalParameter) 
 
 fn refs_differ(b: &[SpeciesReference], m: &[SpeciesReference]) -> bool {
     let sig = |v: &[SpeciesReference]| -> Vec<(String, Option<f64>)> {
-        v.iter().map(|x| (x.species.clone(), x.stoichiometry)).collect()
+        v.iter()
+            .map(|x| (x.species.clone(), x.stoichiometry))
+            .collect()
     };
     sig(b) != sig(m)
 }
@@ -393,20 +490,25 @@ fn update_event(o: &mut Event, b: &Event, m: &Event) {
         }
     }
     let sets = |e: &Event| -> Vec<(String, Option<sbml_io::Math>)> {
-        e.assignments.iter().map(|a| (a.variable.clone(), a.math.clone())).collect()
+        e.assignments
+            .iter()
+            .map(|a| (a.variable.clone(), a.math.clone()))
+            .collect()
     };
     if sets(b) != sets(m) {
         o.assignments = m
             .assignments
             .iter()
-            .map(|ma| match o.assignments.iter().find(|x| x.variable == ma.variable) {
-                Some(x) => {
-                    let mut x = x.clone();
-                    x.math = ma.math.clone();
-                    x
-                }
-                None => ma.clone(),
-            })
+            .map(
+                |ma| match o.assignments.iter().find(|x| x.variable == ma.variable) {
+                    Some(x) => {
+                        let mut x = x.clone();
+                        x.math = ma.math.clone();
+                        x
+                    }
+                    None => ma.clone(),
+                },
+            )
             .collect();
     }
 }

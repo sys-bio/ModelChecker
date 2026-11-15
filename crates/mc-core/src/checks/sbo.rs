@@ -30,22 +30,58 @@ pub fn check(ctx: &mut Ctx) {
     use sbo::*;
     let math = &[MATHEMATICAL_EXPRESSION][..];
 
-    branch(ctx, &m.meta, Element::Model, "the model", &[MODELLING_FRAMEWORK]);
+    branch(
+        ctx,
+        &m.meta,
+        Element::Model,
+        "the model",
+        &[MODELLING_FRAMEWORK],
+    );
     for f in &m.function_definitions {
-        branch(ctx, &f.meta, Element::FunctionDefinition(f.id.clone()), "a function definition", math);
+        branch(
+            ctx,
+            &f.meta,
+            Element::FunctionDefinition(f.id.clone()),
+            "a function definition",
+            math,
+        );
     }
     for c in &m.compartments {
-        branch(ctx, &c.meta, Element::Compartment(c.id.clone()), "a compartment", &[PHYSICAL_ENTITY]);
+        branch(
+            ctx,
+            &c.meta,
+            Element::Compartment(c.id.clone()),
+            "a compartment",
+            &[PHYSICAL_ENTITY],
+        );
     }
     for s in &m.species {
         // Level 2 Versions 2 and 3 used participant roles for species.
-        branch(ctx, &s.meta, Element::Species(s.id.clone()), "a species", &[PHYSICAL_ENTITY, PARTICIPANT_ROLE]);
+        branch(
+            ctx,
+            &s.meta,
+            Element::Species(s.id.clone()),
+            "a species",
+            &[PHYSICAL_ENTITY, PARTICIPANT_ROLE],
+        );
     }
     for p in &m.parameters {
-        branch(ctx, &p.meta, Element::Parameter(p.id.clone()), "a parameter", &[SYSTEMS_DESCRIPTION_PARAMETER]);
+        branch(
+            ctx,
+            &p.meta,
+            Element::Parameter(p.id.clone()),
+            "a parameter",
+            &[SYSTEMS_DESCRIPTION_PARAMETER],
+        );
     }
     for ia in &m.initial_assignments {
-        branch(ctx, &ia.meta, Element::InitialAssignment(ia.symbol.clone()), "an initial assignment", math);
+        branch(
+            ctx,
+            &ia.meta,
+            Element::InitialAssignment(ia.symbol.clone()),
+            "an initial assignment",
+            math,
+        );
     }
     for (i, r) in m.rules.iter().enumerate() {
         let el = match r.variable() {
@@ -74,7 +110,13 @@ pub fn check(ctx: &mut Ctx) {
         let el = Element::Reaction(r.id.clone());
         branch(ctx, &r.meta, el.clone(), "a reaction", &[OCCURRING_ENTITY]);
         for sr in r.reactants.iter().chain(&r.products) {
-            branch(ctx, &sr.meta, el.clone(), "a reactant or product", &[PARTICIPANT_ROLE]);
+            branch(
+                ctx,
+                &sr.meta,
+                el.clone(),
+                "a reactant or product",
+                &[PARTICIPANT_ROLE],
+            );
         }
         for md in &r.modifiers {
             branch(ctx, &md.meta, el.clone(), "a modifier", &[MODIFIER]);
@@ -85,7 +127,13 @@ pub fn check(ctx: &mut Ctx) {
                     reaction: r.id.clone(),
                     id: p.id.clone(),
                 };
-                branch(ctx, &p.meta, lp, "a local parameter", &[SYSTEMS_DESCRIPTION_PARAMETER]);
+                branch(
+                    ctx,
+                    &p.meta,
+                    lp,
+                    "a local parameter",
+                    &[SYSTEMS_DESCRIPTION_PARAMETER],
+                );
             }
             if let Some(t) = branch(ctx, &k.meta, el, "a kinetic law", &[RATE_LAW]) {
                 rate_law(ctx, r, t);
@@ -113,7 +161,10 @@ fn branch(ctx: &mut Ctx, meta: &Meta, el: Element, what: &str, allowed: &[u32]) 
             SO_UNKNOWN,
             Severity::Warning,
             el,
-            format!("{} on {what} is not a term in the Systems Biology Ontology.", sbo::format(id)),
+            format!(
+                "{} on {what} is not a term in the Systems Biology Ontology.",
+                sbo::format(id)
+            ),
             None,
         );
         return None;
@@ -207,7 +258,12 @@ fn claims(name: &str) -> Claims {
     } else if n.contains("trireactant") {
         c.reactants = Some(3);
     }
-    for (pat, r, p) in [("uni-uni", 1, 1), ("uni-bi", 1, 2), ("bi-uni", 2, 1), ("bi-bi", 2, 2)] {
+    for (pat, r, p) in [
+        ("uni-uni", 1, 1),
+        ("uni-bi", 1, 2),
+        ("bi-uni", 2, 1),
+        ("bi-bi", 2, 2),
+    ] {
         if n.contains(pat) {
             c.reactants = Some(r);
             c.products = Some(p);
@@ -218,7 +274,9 @@ fn claims(name: &str) -> Claims {
 
 fn rate_law(ctx: &mut Ctx, r: &Reaction, t: Term) {
     let view = ctx.view;
-    let Some(law) = expanded_rate(view, r) else { return };
+    let Some(law) = expanded_rate(view, r) else {
+        return;
+    };
     // The rate law as written, with only function definitions inlined: its
     // shape is what the SBO term describes, and expanding assignment rules
     // would hide the species they stand for.
@@ -388,7 +446,9 @@ fn rate_law(ctx: &mut Ctx, r: &Reaction, t: Term) {
                 .to_string(),
         );
     }
-    if (sbo::is_a(t.id, sbo::HILL) || sbo::is_a(t.id, sbo::REVERSIBLE_HILL)) && !has_species_power(&written, &is_species) {
+    if (sbo::is_a(t.id, sbo::HILL) || sbo::is_a(t.id, sbo::REVERSIBLE_HILL))
+        && !has_species_power(&written, &is_species)
+    {
         problems.push(
             "a Hill-type rate law should raise a species to a power (S^n), but this one does not"
                 .to_string(),
@@ -470,7 +530,8 @@ struct Side<'a> {
 /// Compares one mass-action term with what the SBO term claims and with
 /// the reaction's participants on that side.
 fn compare_term(problems: &mut Vec<String>, term: &Mono, s: &Side, modifiers: &HashSet<&str>) {
-    let (side, role, order, count, participants) = (s.name, s.role, s.order, s.count, s.participants);
+    let (side, role, order, count, participants) =
+        (s.name, s.role, s.order, s.count, s.participants);
     let actual: f64 = term.1.values().sum();
     if let Some(o) = order
         && (actual - o as f64).abs() > 1e-9
@@ -579,7 +640,9 @@ fn has_species_power(m: &Math, is_species: &dyn Fn(&str) -> bool) -> bool {
         Math::Root { arg, .. } => has_species_power(arg, is_species),
         Math::Piecewise { pieces, otherwise } => {
             pieces.iter().any(|(v, _)| has_species_power(v, is_species))
-                || otherwise.as_deref().is_some_and(|o| has_species_power(o, is_species))
+                || otherwise
+                    .as_deref()
+                    .is_some_and(|o| has_species_power(o, is_species))
         }
         Math::Semantics { math, .. } => has_species_power(math, is_species),
         _ => false,
@@ -592,18 +655,24 @@ mod tests {
 
     #[test]
     fn claims_from_names() {
-        let c = claims("mass action rate law for first order forward, second order reverse, reversible reactions, two products, continuous scheme");
+        let c = claims(
+            "mass action rate law for first order forward, second order reverse, reversible reactions, two products, continuous scheme",
+        );
         assert_eq!(c.reversible, Some(true));
         assert_eq!(c.forward_order, Some(1));
         assert_eq!(c.reverse_order, Some(2));
         assert_eq!(c.products, Some(2));
-        let c = claims("mass action rate law for second order irreversible reactions, two reactants, continuous scheme");
+        let c = claims(
+            "mass action rate law for second order irreversible reactions, two reactants, continuous scheme",
+        );
         assert_eq!(c.reversible, Some(false));
         assert_eq!(c.forward_order, Some(2));
         assert_eq!(c.reactants, Some(2));
         let c = claims("Ordered Bi-Uni mechanism rate law");
         assert_eq!((c.reactants, c.products), (Some(2), Some(1)));
-        let c = claims("enzymatic rate law for irreversible non-modulated non-interacting unireactant enzymes");
+        let c = claims(
+            "enzymatic rate law for irreversible non-modulated non-interacting unireactant enzymes",
+        );
         assert_eq!((c.reversible, c.reactants), (Some(false), Some(1)));
     }
 }

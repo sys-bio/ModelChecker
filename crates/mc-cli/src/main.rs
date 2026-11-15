@@ -87,7 +87,10 @@ fn main() -> ExitCode {
             .filter(|x| !(o.quiet_info && x.severity == Severity::Info))
             .filter(|x| o.code.as_deref().is_none_or(|c| c == x.code))
             .collect();
-        errors += shown.iter().filter(|x| x.severity == Severity::Error).count();
+        errors += shown
+            .iter()
+            .filter(|x| x.severity == Severity::Error)
+            .count();
         let mut seen_codes = Vec::new();
         for x in &shown {
             let t = totals.entry(x.code).or_default();
@@ -141,9 +144,15 @@ fn print_report(path: &Path, r: &Report, shown: &[&mc_core::Finding]) {
         }
         // The rate law as written is already in the reaction line; an
         // expanded one (functions, rules inlined) is still worth showing.
-        let law = f.reaction.as_deref().and_then(|r| r.split_once("; ")).map(|(_, l)| l);
+        let law = f
+            .reaction
+            .as_deref()
+            .and_then(|r| r.split_once("; "))
+            .map(|(_, l)| l);
         for l in lines {
-            let text = l.strip_prefix("Rate law: ").or_else(|| l.strip_prefix("Expression: "));
+            let text = l
+                .strip_prefix("Rate law: ")
+                .or_else(|| l.strip_prefix("Expression: "));
             if law.is_some() && text == law {
                 continue;
             }

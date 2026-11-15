@@ -57,7 +57,11 @@ pub fn report(r: &Report) -> String {
     }
     s.push(']');
     s.push(',');
-    field_opt_str(&mut s, "antimony", r.antimony.as_ref().map(|a| a.text.as_str()));
+    field_opt_str(
+        &mut s,
+        "antimony",
+        r.antimony.as_ref().map(|a| a.text.as_str()),
+    );
     s.push('}');
     s
 }

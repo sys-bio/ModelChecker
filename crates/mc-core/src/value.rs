@@ -115,9 +115,17 @@ impl Value for f64 {
     fn pow(&self, o: &Self) -> (Self, Status, HazardKind) {
         let (x, p) = (*self, *o);
         if x == 0.0 && p < 0.0 {
-            (f64::INFINITY, Status::Certain, HazardKind::ZeroToNegativePower)
+            (
+                f64::INFINITY,
+                Status::Certain,
+                HazardKind::ZeroToNegativePower,
+            )
         } else if x < 0.0 && !is_int(p) && p.is_finite() {
-            (f64::NAN, Status::Certain, HazardKind::NegativeBaseFractionalPower)
+            (
+                f64::NAN,
+                Status::Certain,
+                HazardKind::NegativeBaseFractionalPower,
+            )
         } else {
             (x.powf(p), Status::Safe, HazardKind::Domain)
         }
@@ -394,7 +402,8 @@ impl Value for Interval {
                 a.powf(b)
             }
         };
-        let r = Interval::from_corners([p(x.lo, o.lo), p(x.lo, o.hi), p(x.hi, o.lo), p(x.hi, o.hi)]);
+        let r =
+            Interval::from_corners([p(x.lo, o.lo), p(x.lo, o.hi), p(x.hi, o.lo), p(x.hi, o.hi)]);
         // Exponent ranges crossing zero with base crossing 1 can make the
         // corners miss the value 1; include it to stay sound.
         let r = if o.lo < 0.0 && o.hi > 0.0 {

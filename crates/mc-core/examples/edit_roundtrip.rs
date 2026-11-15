@@ -42,7 +42,9 @@ fn first_difference(a: &sbml_io::Model, b: &sbml_io::Model) -> String {
 }
 
 fn main() {
-    let dir = std::env::args().nth(1).expect("usage: edit_roundtrip FOLDER");
+    let dir = std::env::args()
+        .nth(1)
+        .expect("usage: edit_roundtrip FOLDER");
     let mut files: Vec<_> = std::fs::read_dir(&dir)
         .expect("cannot read folder")
         .flatten()
@@ -56,8 +58,12 @@ fn main() {
     let (mut links_ok, mut links_tried) = (0, 0);
     let mut failures = 0;
     for f in &files {
-        let Ok(xml) = std::fs::read_to_string(f) else { continue };
-        let Ok(read) = sbml_io::read(&xml) else { continue };
+        let Ok(xml) = std::fs::read_to_string(f) else {
+            continue;
+        };
+        let Ok(read) = sbml_io::read(&xml) else {
+            continue;
+        };
         let orig = read.document;
         let Some(model) = &orig.model else { continue };
         models += 1;
@@ -70,14 +76,19 @@ fn main() {
             Ok(e) => {
                 failures += 1;
                 if failures <= 10 {
-                    println!("{name}: unedited text changed the model: {}",
-                        first_difference(model, e.document.model.as_ref().unwrap()));
+                    println!(
+                        "{name}: unedited text changed the model: {}",
+                        first_difference(model, e.document.model.as_ref().unwrap())
+                    );
                 }
             }
             Err(errs) => {
                 failures += 1;
                 if failures <= 10 {
-                    println!("{name}: unedited text gave errors: {:?}", errs.first().map(|e| &e.message));
+                    println!(
+                        "{name}: unedited text gave errors: {:?}",
+                        errs.first().map(|e| &e.message)
+                    );
                 }
             }
         }
@@ -105,7 +116,10 @@ fn main() {
             }
             None
         }
-        if let Some(line) = text.lines().find(|l| l.contains(".sboTerm = ") && !l.trim_start().starts_with("//")) {
+        if let Some(line) = text
+            .lines()
+            .find(|l| l.contains(".sboTerm = ") && !l.trim_start().starts_with("//"))
+        {
             let (id, rest) = line.trim_start().split_once(".sboTerm = ").unwrap();
             let n: u32 = rest.split(';').next().unwrap().trim().parse().unwrap();
             let new_line = line.replacen(&format!("= {n};"), &format!("= {};", n + 1), 1);
@@ -118,23 +132,38 @@ fn main() {
                     Ok(e) => {
                         failures += 1;
                         if failures <= 10 {
-                            println!("{name}: editing the SBO term of {id} changed more: {}",
-                                first_difference(want.model.as_ref().unwrap(), e.document.model.as_ref().unwrap()));
+                            println!(
+                                "{name}: editing the SBO term of {id} changed more: {}",
+                                first_difference(
+                                    want.model.as_ref().unwrap(),
+                                    e.document.model.as_ref().unwrap()
+                                )
+                            );
                         }
                     }
                     Err(errs) => {
                         failures += 1;
                         if failures <= 10 {
-                            println!("{name}: SBO edit gave errors: {:?}", errs.first().map(|e| &e.message));
+                            println!(
+                                "{name}: SBO edit gave errors: {:?}",
+                                errs.first().map(|e| &e.message)
+                            );
                         }
                     }
                 }
             }
         }
-        if let Some(line) = text.lines().find(|l| l.contains(" has ") && !l.trim_start().starts_with("//")) {
+        if let Some(line) = text
+            .lines()
+            .find(|l| l.contains(" has ") && !l.trim_start().starts_with("//"))
+        {
             let (id, unit) = line.trim_start().split_once(" has ").unwrap();
             let unit = unit.trim_end_matches(';');
-            let new_unit = if unit == "dimensionless" { "second" } else { "dimensionless" };
+            let new_unit = if unit == "dimensionless" {
+                "second"
+            } else {
+                "dimensionless"
+            };
             let new_line = line.replacen(&format!(" has {unit};"), &format!(" has {new_unit};"), 1);
             let mut want = orig.clone();
             if let Some((Some(u), _)) = find_meta(want.model.as_mut().unwrap(), id) {
@@ -145,14 +174,22 @@ fn main() {
                     Ok(e) => {
                         failures += 1;
                         if failures <= 10 {
-                            println!("{name}: editing the units of {id} changed more: {}",
-                                first_difference(want.model.as_ref().unwrap(), e.document.model.as_ref().unwrap()));
+                            println!(
+                                "{name}: editing the units of {id} changed more: {}",
+                                first_difference(
+                                    want.model.as_ref().unwrap(),
+                                    e.document.model.as_ref().unwrap()
+                                )
+                            );
                         }
                     }
                     Err(errs) => {
                         failures += 1;
                         if failures <= 10 {
-                            println!("{name}: units edit gave errors: {:?}", errs.first().map(|e| &e.message));
+                            println!(
+                                "{name}: units edit gave errors: {:?}",
+                                errs.first().map(|e| &e.message)
+                            );
                         }
                     }
                 }
@@ -161,7 +198,10 @@ fn main() {
 
         // 6. One database link changed: only that element's annotation (and
         // metaid) may differ, and it must hold the new link, not the old.
-        if let Some(line) = text.lines().find(|l| l.contains(" identity \"") && !l.trim_start().starts_with("//")) {
+        if let Some(line) = text
+            .lines()
+            .find(|l| l.contains(" identity \"") && !l.trim_start().starts_with("//"))
+        {
             let id = line.trim_start().split(' ').next().unwrap().to_string();
             let old_uri = line.split('"').nth(1).unwrap().to_string();
             let new_uri = if old_uri.contains("CHEBI:15422") {
@@ -177,19 +217,24 @@ fn main() {
                     let gm = got.model.as_mut().unwrap();
                     let new_meta = find_meta(gm, &id).map(|(_, meta)| meta.clone());
                     let mut copy = orig.clone();
-                    let orig_meta = find_meta(copy.model.as_mut().unwrap(), &id).map(|(_, meta)| meta.clone());
+                    let orig_meta =
+                        find_meta(copy.model.as_mut().unwrap(), &id).map(|(_, meta)| meta.clone());
                     // Judge by the SBML links themselves: other tools' own
                     // copies (COPASI keeps one) are rightly left alone.
-                    let ok_link = new_meta.as_ref().and_then(|m| m.annotation.as_deref()).is_some_and(|a| {
-                        let terms = sbml_io::miriam::read_annotation(a, &orig.namespaces).terms;
-                        let is: Vec<&String> = terms
-                            .iter()
-                            .filter(|t| !t.model && t.qualifier == "is")
-                            .flat_map(|t| &t.resources)
-                            .collect();
-                        is.iter().any(|r| *r == new_uri)
-                            && (!is.iter().any(|r| **r == old_uri) || line.matches(&old_uri).count() > 1)
-                    });
+                    let ok_link = new_meta
+                        .as_ref()
+                        .and_then(|m| m.annotation.as_deref())
+                        .is_some_and(|a| {
+                            let terms = sbml_io::miriam::read_annotation(a, &orig.namespaces).terms;
+                            let is: Vec<&String> = terms
+                                .iter()
+                                .filter(|t| !t.model && t.qualifier == "is")
+                                .flat_map(|t| &t.resources)
+                                .collect();
+                            is.iter().any(|r| *r == new_uri)
+                                && (!is.iter().any(|r| **r == old_uri)
+                                    || line.matches(&old_uri).count() > 1)
+                        });
                     // Put the original annotation back: the rest must be untouched.
                     if let (Some((_, meta)), Some(o)) = (find_meta(gm, &id), orig_meta) {
                         *meta = o;
@@ -199,25 +244,38 @@ fn main() {
                     } else {
                         failures += 1;
                         if failures <= 10 {
-                            println!("{name}: editing a link of {id} {}", if ok_link {
-                                format!("changed more: {}", first_difference(model, got.model.as_ref().unwrap()))
-                            } else {
-                                "did not change the link".into()
-                            });
+                            println!(
+                                "{name}: editing a link of {id} {}",
+                                if ok_link {
+                                    format!(
+                                        "changed more: {}",
+                                        first_difference(model, got.model.as_ref().unwrap())
+                                    )
+                                } else {
+                                    "did not change the link".into()
+                                }
+                            );
                         }
                     }
                 }
                 Err(errs) => {
                     failures += 1;
                     if failures <= 10 {
-                        println!("{name}: link edit gave errors: {:?}", errs.first().map(|e| &e.message));
+                        println!(
+                            "{name}: link edit gave errors: {:?}",
+                            errs.first().map(|e| &e.message)
+                        );
                     }
                 }
             }
         }
 
         // 3. One rate law changed: only that rate law may differ.
-        if let Some(r) = model.reactions.iter().find(|r| r.kinetic_law.as_ref().is_some_and(|k| k.math.is_some())) {
+        if let Some(r) = model
+            .reactions
+            .iter()
+            .find(|r| r.kinetic_law.as_ref().is_some_and(|k| k.math.is_some()))
+        {
             // Keyword ids are written with a trailing `_`.
             let written = text
                 .lines()
@@ -239,23 +297,35 @@ fn main() {
                         let mut got = e.document.clone();
                         let gm = got.model.as_mut().unwrap();
                         let gr = gm.reactions.iter_mut().find(|x| x.id == r.id).unwrap();
-                        let changed = gr.kinetic_law.as_ref().unwrap().math != r.kinetic_law.as_ref().unwrap().math;
+                        let changed = gr.kinetic_law.as_ref().unwrap().math
+                            != r.kinetic_law.as_ref().unwrap().math;
                         // Put the original rate law back: the rest must be untouched.
-                        gr.kinetic_law.as_mut().unwrap().math = r.kinetic_law.as_ref().unwrap().math.clone();
+                        gr.kinetic_law.as_mut().unwrap().math =
+                            r.kinetic_law.as_ref().unwrap().math.clone();
                         if changed && sbml_io::write(&got) == sbml_io::write(&orig) {
                             law_ok += 1;
                         } else {
                             failures += 1;
                             if failures <= 10 {
-                                println!("{name}: editing the rate law of {} {}", r.id,
-                                    if changed { first_difference(model, got.model.as_ref().unwrap()) } else { "had no effect".into() });
+                                println!(
+                                    "{name}: editing the rate law of {} {}",
+                                    r.id,
+                                    if changed {
+                                        first_difference(model, got.model.as_ref().unwrap())
+                                    } else {
+                                        "had no effect".into()
+                                    }
+                                );
                             }
                         }
                     }
                     Err(errs) => {
                         failures += 1;
                         if failures <= 10 {
-                            println!("{name}: edited rate law gave errors: {:?}", errs.first().map(|e| &e.message));
+                            println!(
+                                "{name}: edited rate law gave errors: {:?}",
+                                errs.first().map(|e| &e.message)
+                            );
                         }
                     }
                 }
@@ -266,7 +336,9 @@ fn main() {
         // not computed by an initial assignment or an assignment rule.
         let computed = |id: &str| {
             model.initial_assignments.iter().any(|a| a.symbol == id)
-                || model.rules.iter().any(|r| matches!(r, sbml_io::Rule::Assignment { variable, .. } if variable == id))
+                || model.rules.iter().any(
+                    |r| matches!(r, sbml_io::Rule::Assignment { variable, .. } if variable == id),
+                )
         };
         let Some((i, p, v)) = model
             .parameters
@@ -283,7 +355,11 @@ fn main() {
         }
         edit_tried += 1;
         let new_v = if v == 0.0 { 1.0 } else { v * 2.0 };
-        let edited = text.replacen(&format!("\n{line}\n"), &format!("\n  {} = {};\n", p.id, exact(new_v)), 1);
+        let edited = text.replacen(
+            &format!("\n{line}\n"),
+            &format!("\n  {} = {};\n", p.id, exact(new_v)),
+            1,
+        );
         let mut want = orig.clone();
         want.model.as_mut().unwrap().parameters[i].value = Some(new_v);
         match apply_edit(&xml, &edited) {
@@ -291,14 +367,23 @@ fn main() {
             Ok(e) => {
                 failures += 1;
                 if failures <= 10 {
-                    println!("{name}: editing {} changed more than its value: {}", p.id,
-                        first_difference(want.model.as_ref().unwrap(), e.document.model.as_ref().unwrap()));
+                    println!(
+                        "{name}: editing {} changed more than its value: {}",
+                        p.id,
+                        first_difference(
+                            want.model.as_ref().unwrap(),
+                            e.document.model.as_ref().unwrap()
+                        )
+                    );
                 }
             }
             Err(errs) => {
                 failures += 1;
                 if failures <= 10 {
-                    println!("{name}: edited text gave errors: {:?}", errs.first().map(|e| &e.message));
+                    println!(
+                        "{name}: edited text gave errors: {:?}",
+                        errs.first().map(|e| &e.message)
+                    );
                 }
             }
         }

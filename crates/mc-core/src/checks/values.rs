@@ -146,7 +146,9 @@ fn roles_and_spread(ctx: &mut Ctx) {
     // Rate constants with their values, for the spread.
     let mut constants: Vec<(String, f64)> = Vec::new();
     for r in &view.model.reactions {
-        let Some(math) = r.kinetic_law.as_ref().and_then(|k| k.math.as_ref()) else { continue };
+        let Some(math) = r.kinetic_law.as_ref().and_then(|k| k.math.as_ref()) else {
+            continue;
+        };
         let law = view.inline_functions(math);
         let loc = locals(r);
         let mut found: Vec<(String, Role)> = Vec::new();
@@ -198,10 +200,26 @@ fn roles_and_spread(ctx: &mut Ctx) {
                 constants.push((p.clone(), value));
             }
             let (bad, what, should) = match role {
-                Role::RateConstant => (value < 0.0, "multiplies the rate (a rate constant or maximum rate)", "should not be negative"),
-                Role::Saturation => (value < 0.0, "is added to a concentration in a denominator (a half-saturation or binding constant)", "should not be negative"),
-                Role::Binding => (value <= 0.0, "divides a concentration (a binding or inhibition constant)", "should be positive"),
-                Role::Hill => (value <= 0.0, "is the power a concentration is raised to (a Hill coefficient)", "should be positive"),
+                Role::RateConstant => (
+                    value < 0.0,
+                    "multiplies the rate (a rate constant or maximum rate)",
+                    "should not be negative",
+                ),
+                Role::Saturation => (
+                    value < 0.0,
+                    "is added to a concentration in a denominator (a half-saturation or binding constant)",
+                    "should not be negative",
+                ),
+                Role::Binding => (
+                    value <= 0.0,
+                    "divides a concentration (a binding or inhibition constant)",
+                    "should be positive",
+                ),
+                Role::Hill => (
+                    value <= 0.0,
+                    "is the power a concentration is raised to (a Hill coefficient)",
+                    "should be positive",
+                ),
             };
             if bad {
                 let title = match role {
@@ -214,7 +232,10 @@ fn roles_and_spread(ctx: &mut Ctx) {
                     Severity::Warning,
                     Element::Reaction(r.id.clone()),
                     title,
-                    format!("In this rate law `{p}` {what}, but it is {}; it {should}.", fmt_num(value)),
+                    format!(
+                        "In this rate law `{p}` {what}, but it is {}; it {should}.",
+                        fmt_num(value)
+                    ),
                     None,
                 );
             }
@@ -261,7 +282,9 @@ fn switched_off(ctx: &mut Ctx) {
     let view = ctx.view;
     let mut off: Vec<(String, String, String)> = Vec::new(); // (reaction, why, law)
     for r in &view.model.reactions {
-        let Some(law) = expanded_rate(view, r) else { continue };
+        let Some(law) = expanded_rate(view, r) else {
+            continue;
+        };
         let mut scope = Scope::new(view);
         scope.locals = locals(r);
         let (iv, _) = scope.interval(&law);
@@ -271,14 +294,22 @@ fn switched_off(ctx: &mut Ctx) {
         // What is zero: fixed symbols in the rate law with value 0.
         let mut zeros: Vec<String> = free_symbols(&law)
             .into_iter()
-            .filter(|s| scope.range(s).is_some_and(|rg| !rg.varies && rg.nominal == 0.0))
+            .filter(|s| {
+                scope
+                    .range(s)
+                    .is_some_and(|rg| !rg.varies && rg.nominal == 0.0)
+            })
             .collect();
         zeros.sort();
         zeros.dedup();
         let why = if zeros.is_empty() {
             String::new()
         } else {
-            format!(" because {} {} zero", zeros.join(", "), if zeros.len() == 1 { "is" } else { "are" })
+            format!(
+                " because {} {} zero",
+                zeros.join(", "),
+                if zeros.len() == 1 { "is" } else { "are" }
+            )
         };
         off.push((r.id.clone(), why, infix(&law)));
     }
@@ -298,7 +329,11 @@ fn switched_off(ctx: &mut Ctx) {
                  version of a model); if not, a value is probably missing.",
                 off.len(),
                 list.join("; "),
-                if off.len() > 15 { format!("; and {} more", off.len() - 15) } else { String::new() }
+                if off.len() > 15 {
+                    format!("; and {} more", off.len() - 15)
+                } else {
+                    String::new()
+                }
             ),
             None,
         );
@@ -328,9 +363,12 @@ fn starting_values(ctx: &mut Ctx) {
         // One finding per species, even with both an amount and a
         // concentration. A tiny negative (-2e-27) is a solver's rounding,
         // saved as a starting value: zero in effect, and harmless.
-        let negative = [(s.initial_concentration, "concentration"), (s.initial_amount, "amount")]
-            .into_iter()
-            .find_map(|(v, what)| v.filter(|v| *v < -1e-12).map(|v| (v, what)));
+        let negative = [
+            (s.initial_concentration, "concentration"),
+            (s.initial_amount, "amount"),
+        ]
+        .into_iter()
+        .find_map(|(v, what)| v.filter(|v| *v < -1e-12).map(|v| (v, what)));
         if let Some((v, what)) = negative {
             ctx.add(
                 VA_START,
@@ -369,7 +407,10 @@ fn starting_values(ctx: &mut Ctx) {
     let extreme = |v: f64| v != 0.0 && v.is_finite() && (v.abs() > 1e25 || v.abs() < 1e-25);
     let mut odd: Vec<String> = Vec::new();
     for s in &m.species {
-        for v in [s.initial_concentration, s.initial_amount].into_iter().flatten() {
+        for v in [s.initial_concentration, s.initial_amount]
+            .into_iter()
+            .flatten()
+        {
             if extreme(v) {
                 odd.push(format!("{} = {}", s.id, fmt_num(v)));
             }
@@ -402,7 +443,11 @@ fn starting_values(ctx: &mut Ctx) {
                  mean a unit has slipped.",
                 n,
                 if n == 1 { "value is" } else { "values are" },
-                if n > 10 { format!(" and {} more", n - 10) } else { String::new() }
+                if n > 10 {
+                    format!(" and {} more", n - 10)
+                } else {
+                    String::new()
+                }
             ),
             None,
         );
@@ -426,7 +471,9 @@ fn duplicates(ctx: &mut Ctx) {
     type Side = Vec<(String, String)>;
     let mut seen: BTreeMap<(Side, Side, String), String> = BTreeMap::new();
     for r in &view.model.reactions {
-        let Some(law) = expanded_rate(view, r) else { continue };
+        let Some(law) = expanded_rate(view, r) else {
+            continue;
+        };
         // Local parameters stand for their values, so two reactions with
         // their own `k` of the same value are the same.
         let text = infix(&with_values(&law, &locals(r)));
@@ -518,7 +565,11 @@ fn conditions(ctx: &mut Ctx) {
     }
     for rule in &view.model.rules {
         if let (Some(v), Some(m)) = (rule.variable(), rule.math()) {
-            exprs.push((Element::Rule(v.to_string()), view.expand(m, &HashSet::new()), Default::default()));
+            exprs.push((
+                Element::Rule(v.to_string()),
+                view.expand(m, &HashSet::new()),
+                Default::default(),
+            ));
         }
     }
     for (el, m, loc) in exprs {
