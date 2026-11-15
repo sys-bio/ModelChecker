@@ -387,3 +387,28 @@ fn volume_heuristic_without_units() {
     let r = run("compartment cell = 1\nspecies S in cell, P in cell\nJ1: S => P; k*S\nS = 1; P = 0; k = 1");
     assert_not!(r, UN_VOLUME_HEURISTIC);
 }
+
+#[test]
+fn repeated_unit_findings_are_merged() {
+    // Three rate laws missing the same volume factor: one finding.
+    let r = run_units(
+        "compartment cell = 2\nspecies A in cell, B in cell, C in cell, D in cell\n\
+         J1: A => B; k*A\nJ2: B => C; k*B\nJ3: C => D; k*C\n\
+         A = 1; B = 0; C = 0; D = 0; k = 1",
+        &[("k", "per_s")],
+    );
+    let v: Vec<_> = r.findings.iter().filter(|f| f.code == UN_MISSING_VOLUME).collect();
+    assert_eq!(v.len(), 1, "{}", show(&r));
+    assert_eq!(v[0].element, mc_core::Element::Model);
+    assert!(v[0].message.starts_with("3 rate laws"), "{}", v[0].message);
+    assert!(v[0].message.contains("J1, J2, J3"), "{}", v[0].message);
+
+    // Two are reported one by one.
+    let r = run_units(
+        "compartment cell = 2\nspecies A in cell, B in cell, C in cell\n\
+         J1: A => B; k*A\nJ2: B => C; k*B\nA = 1; B = 0; C = 0; k = 1",
+        &[("k", "per_s")],
+    );
+    let n = r.findings.iter().filter(|f| f.code == UN_MISSING_VOLUME).count();
+    assert_eq!(n, 2, "{}", show(&r));
+}

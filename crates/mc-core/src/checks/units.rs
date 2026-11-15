@@ -405,6 +405,9 @@ pub fn check(ctx: &mut Ctx) {
     let mut undetermined = 0usize;
     let mut laws = 0usize;
     let mut missing_units: BTreeSet<String> = BTreeSet::new();
+    // Per-reaction rate findings that may share a cause: (index of the
+    // finding, its group, the reaction).
+    let mut grouped: Vec<(usize, Group, String)> = Vec::new();
 
     for r in &m.reactions {
         let Some(math) = r.kinetic_law.as_ref().and_then(|k| k.math.as_ref()) else {
@@ -428,7 +431,9 @@ pub fn check(ctx: &mut Ctx) {
         let mut volume_reported = false;
         match (u, expected_rate) {
             (U::Known(got), Some(want)) if !got.same(&want) => {
-                volume_reported = check_rate_units(ctx, &units, r, &inlined, got, want);
+                let g = check_rate_units(ctx, &units, r, &inlined, got, want);
+                volume_reported = g.code == UN_MISSING_VOLUME;
+                grouped.push((ctx.findings.len() - 1, g, r.id.clone()));
             }
             (U::Known(_), _) => {}
             _ => {
@@ -448,10 +453,14 @@ pub fn check(ctx: &mut Ctx) {
                 }
             }
         }
-        if !volume_reported && !matches!(u, U::Known(_)) {
-            volume_heuristic(ctx, r, math);
+        if !volume_reported
+            && !matches!(u, U::Known(_))
+            && let Some(g) = volume_heuristic(ctx, r, math)
+        {
+            grouped.push((ctx.findings.len() - 1, g, r.id.clone()));
         }
     }
+    merge_groups(ctx, grouped);
 
     // Rules and assignments against their variables' declared units.
     let check_target = |ctx: &mut Ctx, el: Element, var: &str, math: &Math, per_time: bool, what: &str| {
@@ -558,8 +567,66 @@ fn with_law(message: &str, m: &Math) -> String {
     format!("{message}\nExpression: {}", infix(m))
 }
 
-/// UN001 or UN005 for a rate law whose units are known and wrong. Returns
-/// whether a missing volume factor was reported.
+/// What a per-reaction rate finding has in common with others of the same
+/// cause, for merging them.
+struct Group {
+    code: &'static str,
+    key: String,
+    /// "N rate laws ..." continues with this.
+    summary: String,
+    /// Why they may share a cause.
+    hint: String,
+}
+
+/// The fewest findings with one cause that are merged into one.
+const MERGE_AT: usize = 3;
+
+/// Replaces each group of at least [`MERGE_AT`] findings with one cause by
+/// a single model-level finding that lists the reactions.
+fn merge_groups(ctx: &mut Ctx, grouped: Vec<(usize, Group, String)>) {
+    let mut by_key: Vec<(&Group, Vec<(usize, &str)>)> = Vec::new();
+    for (i, g, r) in &grouped {
+        match by_key
+            .iter_mut()
+            .find(|(k, _)| k.code == g.code && k.key == g.key)
+        {
+            Some((_, v)) => v.push((*i, r)),
+            None => by_key.push((g, vec![(*i, r)])),
+        }
+    }
+    let mut remove: Vec<usize> = Vec::new();
+    let mut merged = Vec::new();
+    for (g, members) in by_key {
+        if members.len() < MERGE_AT {
+            continue;
+        }
+        remove.extend(members.iter().map(|(i, _)| *i));
+        let mut ids: Vec<&str> = members.iter().map(|(_, r)| *r).collect();
+        let n = ids.len();
+        let more = n.saturating_sub(12);
+        ids.truncate(12);
+        let list = if more > 0 {
+            format!("{} and {more} more", ids.join(", "))
+        } else {
+            ids.join(", ")
+        };
+        merged.push(crate::finding::Finding {
+            code: g.code,
+            severity: Severity::Warning,
+            element: Element::Model,
+            message: format!("{n} rate laws {}: {list}. {}", g.summary, g.hint),
+            witness: None,
+            reaction: None,
+        });
+    }
+    remove.sort_unstable();
+    for i in remove.into_iter().rev() {
+        ctx.findings.remove(i);
+    }
+    ctx.findings.extend(merged);
+}
+
+/// UN001 or UN005 for a rate law whose units are known and wrong.
 fn check_rate_units(
     ctx: &mut Ctx,
     units: &Units,
@@ -567,7 +634,7 @@ fn check_rate_units(
     law: &Math,
     got: Unit,
     want: Unit,
-) -> bool {
+) -> Group {
     let view = ctx.view;
     let el = Element::Reaction(r.id.clone());
     // Is it short of exactly one compartment's size units?
@@ -595,7 +662,14 @@ fn check_rate_units(
                 ),
                 None,
             );
-            return true;
+            return Group {
+                code: UN_MISSING_VOLUME,
+                key: c.to_string(),
+                summary: format!(
+                    "are in concentration per time, short of amount per time by the size of compartment `{c}`"
+                ),
+                hint: format!("Multiply each by `{c}`."),
+            };
         }
     }
     let note = if got.same_dimensions(&want) {
@@ -618,13 +692,45 @@ fn check_rate_units(
         ),
         None,
     );
-    false
+    // Rate laws off by the same ratio probably share one cause.
+    let ratio = got.div(&want);
+    let time_only = (0..8).all(|i| i == 2 || ratio.exp[i].abs() < 1e-9) && ratio.exp[2].abs() > 1e-9;
+    let hint = if ratio.is_dimensionless() {
+        format!(
+            "They are all off by the same factor, {}, which points to a unit definition (often the substance or time unit) being off by that factor, not to the rate laws themselves.",
+            crate::sample::fmt_num(got.factor(&want))
+        )
+    } else if time_only {
+        "They all differ by a time dimension, which points to rate constants declared with the wrong time units, or with none."
+            .to_string()
+    } else {
+        "They all differ in the same way, so the cause is probably shared: a unit definition, or a parameter they all use."
+            .to_string()
+    };
+    Group {
+        code: UN_RATE_UNITS,
+        key: ratio.to_string(),
+        summary: if ratio.is_dimensionless() {
+            format!(
+                "are off from extent per time ({}) by the same factor, {}",
+                units.describe(&want),
+                crate::sample::fmt_num(got.factor(&want))
+            )
+        } else {
+            format!(
+                "are all in {} where extent per time ({}) is needed",
+                units.describe(&got),
+                units.describe(&want)
+            )
+        },
+        hint,
+    }
 }
 
 /// UN006: without units to go on, a rate law that uses concentrations of
 /// species in a compartment whose size is not 1, and never mentions a
 /// compartment, is probably missing the volume factor.
-fn volume_heuristic(ctx: &mut Ctx, r: &sbml_io::Reaction, math: &Math) {
+fn volume_heuristic(ctx: &mut Ctx, r: &sbml_io::Reaction, math: &Math) -> Option<Group> {
     let view = ctx.view;
     let m = view.model;
     let shadow = super::shadow(&locals(r)).iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -635,7 +741,7 @@ fn volume_heuristic(ctx: &mut Ctx, r: &sbml_io::Reaction, math: &Math) {
         .iter()
         .any(|d| view.kinds.get(d.as_str()) == Some(&Kind::Compartment))
     {
-        return;
+        return None;
     }
     // Species the rate depends on, as concentrations, in a compartment of
     // size other than 1.
@@ -655,7 +761,7 @@ fn volume_heuristic(ctx: &mut Ctx, r: &sbml_io::Reaction, math: &Math) {
             break;
         }
     }
-    let Some((s, c, size)) = culprit else { return };
+    let (s, c, size) = culprit?;
     ctx.add(
         UN_VOLUME_HEURISTIC,
         Severity::Warning,
@@ -671,4 +777,15 @@ fn volume_heuristic(ctx: &mut Ctx, r: &sbml_io::Reaction, math: &Math) {
         ),
         None,
     );
+    Some(Group {
+        code: UN_VOLUME_HEURISTIC,
+        key: c.to_string(),
+        summary: format!(
+            "use concentrations of species in compartment `{c}` (size {}) but never refer to a compartment",
+            crate::sample::fmt_num(size)
+        ),
+        hint: format!(
+            "Kinetic laws give amount per time, so each usually needs a factor of `{c}`, unless its rate constants already include the volume."
+        ),
+    })
 }

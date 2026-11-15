@@ -36,6 +36,8 @@ pub fn report(r: &Report) -> String {
         field_str(&mut s, "message", &f.message);
         s.push(',');
         field_opt_str(&mut s, "witness", f.witness.as_deref());
+        s.push(',');
+        field_opt_str(&mut s, "reaction", f.reaction.as_deref());
         s.push('}');
     }
     s.push_str("]}");

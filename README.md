@@ -73,6 +73,12 @@ your computer. There is also a command-line tool for checking whole folders.
   whatever it is added to. In a product, only small whole numbers and 1/2
   count as dimensionless; other numbers may hide units (conversion factors,
   rate constants), as in libSBML.
+- **Repeated findings.** When three or more rate laws fail a unit check for
+  the same reason (off by the same ratio, or missing the same compartment's
+  volume), they are reported as one model-level finding that lists the
+  reactions and suggests the shared cause.
+- **Context.** Each finding about a reaction shows the reaction itself,
+  e.g. `J4: S4 -> ; k4*(S4 + E)`, with `$` marking boundary species.
 - **Conservation.** A witness that empties a whole conserved moiety (found
   from the stoichiometry matrix) is not a reachable state, so it is not used.
 

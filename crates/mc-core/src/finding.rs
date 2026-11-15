@@ -101,6 +101,9 @@ pub struct Finding {
     /// A concrete point that shows the problem, for example
     /// `S1 = 0, P = 0, E = 1 gives v = 2.3`.
     pub witness: Option<String>,
+    /// The reaction the finding is about, written out:
+    /// `J1: S1 + 2 S2 -> P; k1*S1*S2`.
+    pub reaction: Option<String>,
 }
 
 impl fmt::Display for Finding {

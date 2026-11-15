@@ -56,7 +56,32 @@ body {
 }
 main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
 header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
-header p { margin: 0; color: var(--muted); }
+.title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.intro { color: var(--muted); max-width: 820px; }
+.intro p { margin: 8px 0; }
+.intro ul { margin: 6px 0 0; padding-left: 22px; }
+.intro li { margin: 3px 0; }
+.intro strong { color: var(--text); font-weight: 600; }
+.link-button {
+  border: none; background: none; padding: 4px 2px; color: var(--accent);
+  text-decoration: underline; text-underline-offset: 3px;
+}
+dialog {
+  max-width: min(560px, calc(100vw - 32px));
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--panel); color: var(--text); padding: 20px 24px;
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+dialog h2 { margin: 0 0 8px; font-size: 20px; }
+dialog h3 { margin: 16px 0 4px; font-size: 15px; }
+dialog p { margin: 6px 0; }
+dialog a, .intro a { color: var(--accent); }
+dialog form { margin-top: 16px; text-align: right; }
+.f-rxn {
+  margin-top: 6px; padding: 6px 10px; border-radius: 6px;
+  border: 1px solid var(--border); overflow-wrap: anywhere; white-space: pre-wrap;
+}
+.f-rxn::before { content: "Reaction: "; color: var(--muted); font-family: system-ui, sans-serif; }
 code, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px; }
 
 #drop {
@@ -153,9 +178,35 @@ footer a { color: var(--accent); }
 <body>
 <main>
   <header>
-    <h1>Model Checker</h1>
-    <p>Static checks for kinetic SBML models: singular rate laws, species that can go negative,
-       zero-order reactions, undefined and unused symbols.</p>
+    <div class="title-row">
+      <h1>Model Checker</h1>
+      <button id="about-open" class="link-button">About</button>
+    </div>
+    <div class="intro">
+      <p>Model Checker finds mistakes in kinetic (ODE) models written in SBML. Simulators will
+         run a model whose rate law divides by zero when a species runs out, whose reactions
+         keep consuming a species after it is gone, or whose units do not add up. The result
+         is a simulation that fails part way through, concentrations that go negative, or,
+         worst of all, an answer that is quietly wrong. Model Checker reads the model and
+         examines every rate law and rule without simulating it. It explains each problem it
+         finds and, where it can, gives a concrete set of values that shows it.</p>
+      <p>Use it while building a model, before publishing one or submitting it to a
+         repository such as BioModels, when reviewing or curating someone else's model, or
+         when a simulation misbehaves and you want to rule out the model itself. It looks for:</p>
+      <ul>
+        <li><strong>Singular rate laws</strong>: division by zero, logs of zero, and the like,
+            at the initial values or at any state the model could reach.</li>
+        <li><strong>Species that can go negative</strong>: reactions that still consume a
+            species once it has run out, including reactions written in the opposite
+            direction to their rate law.</li>
+        <li><strong>Zero-order reactions</strong> and reactants missing from rate laws, which
+            are often typos.</li>
+        <li><strong>Unit errors</strong>: rate laws not in amount per time, missing compartment
+            volume factors, and sums of quantities with different units.</li>
+        <li><strong>Symbol problems</strong>: undefined, unused, or valueless parameters and
+            species.</li>
+      </ul>
+    </div>
   </header>
 
   <section id="drop">
@@ -199,6 +250,23 @@ footer a { color: var(--accent); }
   </footer>
 </main>
 
+<dialog id="about" aria-labelledby="about-title">
+  <h2 id="about-title">About Model Checker</h2>
+  <p>Model Checker runs static checks on kinetic SBML models (Levels 2 and 3), entirely in
+     your browser: the model is never uploaded. It is written in Rust and compiled to
+     WebAssembly. Version <span id="about-version"></span>.</p>
+  <p>Source code, the command-line tool, and issue tracker:
+     <a href="https://github.com/sys-bio/ModelChecker">github.com/sys-bio/ModelChecker</a>.</p>
+  <h3>Funding</h3>
+  <p>This work was supported by NIH Biomedical Imaging and Bioengineering award
+     P41 EB023912 through HMS at the Center for Reproducible Biomedical Modeling,
+     <a href="https://reproduciblebiomodels.org">reproduciblebiomodels.org</a>.</p>
+  <h3>AI assistance</h3>
+  <p>This software was developed with the assistance of Anthropic's Claude, an AI model,
+     through Claude Code.</p>
+  <form method="dialog"><button class="primary">Close</button></form>
+</dialog>
+
 <script>
 (function () {
   "use strict";
@@ -220,6 +288,7 @@ footer a { color: var(--accent); }
     $("pick").disabled = false;
     $("example").disabled = false;
     $("version").textContent = api.version();
+    $("about-version").textContent = api.version();
     status("Ready. Choose an SBML file (Level 2 or 3).");
     const codes = JSON.parse(api.finding_codes());
     $("codes").innerHTML = codes.map((c) =>
@@ -272,7 +341,7 @@ footer a { color: var(--accent); }
     const text = $("text-filter").value.trim().toLowerCase();
     const shown = report.findings.filter((f) =>
       sev.has(f.severity) && (!code || f.code === code) &&
-      (!text || (f.id + " " + f.message + " " + (f.witness || "")).toLowerCase().includes(text)));
+      (!text || [f.id, f.message, f.witness, f.reaction].join(" ").toLowerCase().includes(text)));
     if (!shown.length) {
       $("list").innerHTML = report.findings.length
         ? `<div class="empty">No findings match the filters.</div>`
@@ -288,12 +357,17 @@ footer a { color: var(--accent); }
         expr = last.replace(/^(Rate law|Expression): /, "");
         lines.pop();
       }
+      // The reaction already shows its rate law as written; show the
+      // expression separately only when it differs (functions expanded).
+      const law = f.reaction && f.reaction.includes("; ") ? f.reaction.slice(f.reaction.indexOf("; ") + 2) : null;
+      if (expr && expr === law) expr = "";
       const el = f.kind === "model" ? "model" : `${esc(f.kind)} <code>${esc(f.id)}</code>`;
       return `<div class="finding ${f.severity}">
         <div class="f-head"><span class="sev ${f.severity}">${f.severity}</span>
           <span class="f-title">${esc(f.title)}</span>
           <span class="f-code mono">${esc(f.code)}</span>
           <span class="f-el">${el}</span></div>
+        ${f.reaction ? `<div class="f-rxn mono">${esc(f.reaction)}</div>` : ""}
         <div class="f-msg">${esc(lines.join("\n"))}</div>
         ${expr ? `<div class="f-expr mono">${esc(expr)}</div>` : ""}
         ${f.witness ? `<div class="f-wit mono">${esc(f.witness)}</div>` : ""}
@@ -306,6 +380,7 @@ footer a { color: var(--accent); }
     file.text().then((t) => run(t, file.name), (e) => status("Cannot read the file: " + e, true));
   }
 
+  $("about-open").onclick = () => $("about").showModal();
   $("pick").onclick = () => $("file").click();
   $("file").onchange = (e) => readFile(e.target.files[0]);
   $("example").onclick = () => {

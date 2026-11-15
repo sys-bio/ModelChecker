@@ -34,6 +34,7 @@ impl Ctx<'_, '_> {
             element,
             message: message.into(),
             witness,
+            reaction: None,
         });
     }
 }

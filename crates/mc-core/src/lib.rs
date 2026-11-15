@@ -72,6 +72,7 @@ pub fn check(xml: &str) -> Report {
                     element: Element::Model,
                     message: format!("Line {}, column {}: {}", d.line, d.column, d.message),
                     witness: None,
+                    reaction: None,
                 });
             }
             return report;
@@ -87,6 +88,7 @@ pub fn check(xml: &str) -> Report {
             element: Element::Model,
             message: format!("Line {}, column {}: {}", d.line, d.column, d.message),
             witness: None,
+            reaction: None,
         });
     }
     for issue in sbml_io::validate(&doc) {
@@ -96,6 +98,7 @@ pub fn check(xml: &str) -> Report {
             element: Element::Model,
             message: issue.message,
             witness: None,
+            reaction: None,
         });
     }
     let Some(model) = &doc.model else {
@@ -105,12 +108,24 @@ pub fn check(xml: &str) -> Report {
             element: Element::Model,
             message: "The document contains no model.".into(),
             witness: None,
+            reaction: None,
         });
         return report;
     };
     report.model_id = model.id.clone();
     report.model_name = model.name.clone();
     report.findings.extend(checks::run(model, doc.level));
+    // Show the reaction itself with every finding about one.
+    for f in &mut report.findings {
+        let id = match &f.element {
+            Element::Reaction(id) => id,
+            Element::LocalParameter { reaction, .. } => reaction,
+            _ => continue,
+        };
+        if let Some(r) = model.reactions.iter().find(|r| &r.id == id) {
+            f.reaction = Some(fmt::reaction(r, model));
+        }
+    }
     // Most severe first; within a severity, by code, then element.
     report
         .findings

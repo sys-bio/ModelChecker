@@ -136,7 +136,17 @@ fn print_report(path: &Path, r: &Report, shown: &[&mc_core::Finding]) {
             f.element,
             lines.next().unwrap_or("")
         );
+        if let Some(r) = &f.reaction {
+            println!("          reaction: {r}");
+        }
+        // The rate law as written is already in the reaction line; an
+        // expanded one (functions, rules inlined) is still worth showing.
+        let law = f.reaction.as_deref().and_then(|r| r.split_once("; ")).map(|(_, l)| l);
         for l in lines {
+            let text = l.strip_prefix("Rate law: ").or_else(|| l.strip_prefix("Expression: "));
+            if law.is_some() && text == law {
+                continue;
+            }
             println!("          {l}");
         }
         if let Some(w) = &f.witness {

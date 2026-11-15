@@ -171,6 +171,48 @@ fn apply(op: Op, args: &[Math], outer: u8, s: &mut String) {
     }
 }
 
+/// A reaction written out, Antimony style: `J1: $X + 2 S -> P; k*X*S`.
+/// Boundary species have a `$`; the arrow is always `->`, since the rate
+/// law, not the `reversible` attribute, decides the direction.
+pub fn reaction(r: &sbml_io::Reaction, model: &sbml_io::Model) -> String {
+    let side = |refs: &[sbml_io::SpeciesReference]| -> String {
+        refs.iter()
+            .map(|sr| {
+                let boundary = model
+                    .species
+                    .iter()
+                    .find(|s| s.id == sr.species)
+                    .is_some_and(|s| s.boundary_condition == Some(true));
+                let name = if boundary {
+                    format!("${}", sr.species)
+                } else {
+                    sr.species.clone()
+                };
+                match sr.stoichiometry {
+                    Some(n) if n != 1.0 => format!("{} {name}", crate::sample::fmt_num(n)),
+                    _ => name,
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(" + ")
+    };
+    let lhs = side(&r.reactants);
+    let rhs = side(&r.products);
+    let mut s = format!("{}: ", r.id);
+    s.push_str(&lhs);
+    s.push_str(if lhs.is_empty() { "-> " } else { " -> " });
+    s.push_str(&rhs);
+    s.push(';');
+    match r.kinetic_law.as_ref().and_then(|k| k.math.as_ref()) {
+        Some(m) => {
+            s.push(' ');
+            s.push_str(&infix(m));
+        }
+        None => s.push_str(" (no rate law)"),
+    }
+    s
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
