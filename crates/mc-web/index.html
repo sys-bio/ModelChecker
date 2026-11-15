@@ -370,8 +370,21 @@ footer a { color: var(--accent); }
     api = bindings;
     $("pick").disabled = false;
     $("example").disabled = false;
-    $("version").textContent = api.version();
-    $("about-version").textContent = api.version();
+    // Version, and the commit and date this page was built from, so a user
+    // can tell whether they have the latest.
+    const commit = api.build_commit();
+    const short = commit.slice(0, 7);
+    const [y, mo, d] = api.build_date().split("-").map(Number);
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const date = `${d} ${months[mo - 1]} ${y}`;
+    const build = commit
+      ? `build <a href="https://github.com/sys-bio/ModelChecker/commit/${esc(commit)}" ` +
+        `title="The commit this page was built from">${esc(short)}</a>, ${date}` +
+        (api.built_by_ci() ? "" : " (local build)")
+      : `built ${date}` + (api.built_by_ci() ? "" : " (local build)");
+    const text = `${esc(api.version())}, ${build}`;
+    $("version").innerHTML = text;
+    $("about-version").innerHTML = text;
     status("Ready. Choose an SBML file (Level 2 or 3).");
     const codes = JSON.parse(api.finding_codes());
     $("codes").innerHTML = codes.map((c) =>

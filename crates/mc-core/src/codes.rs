@@ -86,6 +86,7 @@ pub const SB_READ: &str = "SB001";
 pub const SB_READ_WARNING: &str = "SB002";
 pub const SB_STRUCTURE: &str = "SB003";
 pub const SB_NO_MODEL: &str = "SB004";
+pub const SB_LAYOUT: &str = "SB005";
 
 pub const ALL: &[Code] = &[
     Code {
@@ -379,6 +380,13 @@ pub const ALL: &[Code] = &[
         code: SB_NO_MODEL,
         title: "No model",
         help: "The document contains no model.",
+    },
+    Code {
+        code: SB_LAYOUT,
+        title: "Diagram (layout) problem",
+        help: "The model's diagram, stored with the SBML Layout package, refers to something \
+               missing or of the wrong kind. It affects only how the model is drawn, not how \
+               it behaves or simulates.",
     },
     Code {
         code: RL_SINGULAR,

@@ -793,3 +793,19 @@ fn elements_without_names() {
     let r = run("J1: glucose => g6p; k*glucose\nglucose = 1; g6p = 0; k = 1");
     assert_not!(r, MD_NO_NAME);
 }
+
+// ------------------------------------------------- example files
+
+/// An old JDesigner model: its deprecated JDesigner2_0 layout is not
+/// checked, and the model itself has no reading or structure problems.
+#[test]
+fn jdesigner_model_checks_clean() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../Examples/ConservedCycles.xml");
+    let xml = std::fs::read_to_string(path).expect("Examples/ConservedCycles.xml");
+    let r = mc_core::check(&xml);
+    assert!(
+        !r.findings.iter().any(|f| f.code.starts_with("SB")),
+        "{}",
+        show(&r)
+    );
+}

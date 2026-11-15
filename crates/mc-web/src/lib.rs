@@ -35,3 +35,22 @@ pub fn finding_codes() -> String {
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
+
+/// The commit the page was built from (full hash; empty if unknown).
+#[wasm_bindgen]
+pub fn build_commit() -> String {
+    env!("MC_BUILD_COMMIT").to_string()
+}
+
+/// The date the page was built, as YYYY-MM-DD (UTC).
+#[wasm_bindgen]
+pub fn build_date() -> String {
+    env!("MC_BUILD_DATE").to_string()
+}
+
+/// Whether the page was built by GitHub Actions (the published site)
+/// rather than locally.
+#[wasm_bindgen]
+pub fn built_by_ci() -> bool {
+    env!("MC_BUILD_CI") == "true"
+}

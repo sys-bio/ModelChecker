@@ -121,12 +121,59 @@ pub fn check_document(doc: &sbml_io::Document) -> Report {
         findings: Vec::new(),
         antimony: None,
     };
+    // Problems in the diagram (the Layout package) do not affect the model's
+    // behaviour: warnings of their own, saying so. The same problem on many
+    // glyphs (an editor that writes every arrow the same way) is one finding.
+    let mut layout: Vec<String> = Vec::new();
+    let mut arrow_ends: Vec<String> = Vec::new();
     for issue in sbml_io::validate(doc) {
+        let m = issue.message;
+        // JDesigner 2's layouts are a deprecated format that old files
+        // still carry; their quirks are not worth reporting.
+        if m.contains("layout \"JDesigner2_0\"") {
+            continue;
+        }
+        if m.starts_with("layout ") || m.starts_with("the layout ") {
+            if m.contains("should point at a species reference") && m.ends_with("which is a species") {
+                if let Some(id) = m.split('"').rev().nth(1)
+                    && !arrow_ends.iter().any(|x| x == id)
+                {
+                    arrow_ends.push(id.to_string());
+                }
+            } else {
+                layout.push(m);
+            }
+            continue;
+        }
         report.findings.push(Finding {
             code: codes::SB_STRUCTURE,
             severity: Severity::Error,
             element: Element::Model,
-            message: issue.message,
+            message: m,
+            witness: None,
+            reaction: None,
+            title: None,
+            line: None,
+        });
+    }
+    if !arrow_ends.is_empty() {
+        arrow_ends.sort();
+        layout.push(format!(
+            "reaction arrows end at the species themselves ({}) rather than at the reactions' \
+             reactant and product entries, as the SBML Layout standard asks. Some diagram \
+             editors write layouts this way",
+            arrow_ends.join(", ")
+        ));
+    }
+    for m in layout {
+        report.findings.push(Finding {
+            code: codes::SB_LAYOUT,
+            severity: Severity::Warning,
+            element: Element::Model,
+            message: format!(
+                "In the model's diagram (layout): {m}. This only affects how the model is \
+                 drawn, not how it behaves or simulates."
+            ),
             witness: None,
             reaction: None,
             title: None,

@@ -82,6 +82,22 @@ enum Kind {
     Event,
 }
 
+impl Kind {
+    fn name(self) -> &'static str {
+        match self {
+            Kind::Function => "function definition",
+            Kind::CompartmentType => "compartment type",
+            Kind::SpeciesType => "species type",
+            Kind::Compartment => "compartment",
+            Kind::Species => "species",
+            Kind::Parameter => "parameter",
+            Kind::Reaction => "reaction",
+            Kind::SpeciesReference => "species reference (a reactant or product of a reaction)",
+            Kind::Event => "event",
+        }
+    }
+}
+
 #[derive(Default)]
 struct V {
     issues: Vec<Issue>,
@@ -403,12 +419,19 @@ impl V {
         }
 
         let model_ref = |v: &mut V, id: &Option<String>, kinds: &[Kind]| {
-            if let Some(id) = id
-                && !ids.get(id.as_str()).is_some_and(|k| kinds.contains(k))
-            {
-                v.issue(format!(
+            let Some(id) = id else { return };
+            match ids.get(id.as_str()) {
+                Some(k) if kinds.contains(k) => {}
+                // There, but not what the glyph should point at: say both, as
+                // "isn't in the model" would be wrong.
+                Some(k) => v.issue(format!(
+                    "{what}: a glyph that should point at a {} points at \"{id}\", which is a {}",
+                    kinds[0].name(),
+                    k.name()
+                )),
+                None => v.issue(format!(
                     "{what}: a glyph refers to \"{id}\", which isn't in the model"
-                ));
+                )),
             }
         };
         for g in &l.compartment_glyphs {

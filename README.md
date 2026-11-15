@@ -82,6 +82,7 @@ your computer. There is also a command-line tool for checking whole folders.
 | SY006 | warning  | Symbol with no value from anywhere |
 | SY007 | info     | MathML that could not be analysed |
 | SB001-SB004 | | Reading problems, structural problems (duplicate ids, dangling references) |
+| SB005 | warning  | Problem in the model's diagram (Layout package); affects drawing only. Layouts named `JDesigner2_0` (a deprecated format) are not checked |
 
 ### How
 
