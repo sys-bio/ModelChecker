@@ -55,6 +55,44 @@ body {
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }
+main.wide { max-width: 1560px; }
+.results-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.95fr); gap: 16px; align-items: start; }
+.ant-panel {
+  position: sticky; top: 12px; max-height: calc(100vh - 24px);
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+}
+.ant-head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border-bottom: 1px solid var(--border); font-weight: 600;
+}
+.ant-head .spacer { flex: 1; }
+.ant-head button { padding: 3px 10px; font-size: 13px; font-weight: normal; }
+.ant-note { font-weight: normal; color: var(--muted); font-size: 13px; }
+#ant { overflow: auto; flex: 1; padding: 6px 0; font-size: 12.5px; line-height: 1.55; }
+.cl { display: flex; white-space: pre; padding-right: 12px; }
+.cl .ln {
+  flex: 0 0 auto; width: 4.2em; padding-right: 10px; text-align: right;
+  color: var(--muted); user-select: none; position: relative;
+}
+.cl.mark .ln { cursor: pointer; }
+.cl.mark .ln::before {
+  content: ""; position: absolute; left: 6px; top: 0.5em; width: 7px; height: 7px; border-radius: 50%;
+}
+.cl.mark.error .ln::before { background: var(--error); }
+.cl.mark.warning .ln::before { background: var(--warning); }
+.cl.mark.info .ln::before { background: var(--info); }
+.cl.hl { background: var(--drop); box-shadow: inset 3px 0 0 var(--accent); }
+.tk-c { color: var(--muted); font-style: italic; }
+.tk-k { color: var(--accent); font-weight: 600; }
+.finding.linked { cursor: pointer; }
+.finding.linked:hover { border-color: var(--accent); }
+.finding.flash { box-shadow: 0 0 0 2px var(--accent); }
+.f-line { color: var(--accent); font-size: 13px; }
+@media (max-width: 1000px) {
+  .results-grid { grid-template-columns: minmax(0, 1fr); }
+  .ant-panel { position: static; max-height: 70vh; }
+}
 header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.01em; }
 .title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .intro { color: var(--muted); max-width: 820px; }
@@ -230,7 +268,18 @@ footer a { color: var(--accent); }
       <input type="search" id="text-filter" placeholder="Filter by id or text" aria-label="Filter by text">
       <button id="save">Save JSON</button>
     </div>
-    <div id="list"></div>
+    <div class="results-grid">
+      <div id="list"></div>
+      <aside class="ant-panel" aria-label="The model in Antimony">
+        <div class="ant-head">
+          Antimony <span class="ant-note">read only</span>
+          <span class="spacer"></span>
+          <button id="ant-copy">Copy</button>
+          <button id="ant-save">Download .ant</button>
+        </div>
+        <div id="ant" class="mono"></div>
+      </aside>
+    </div>
   </section>
 
   <details class="help">
@@ -331,8 +380,87 @@ footer a { color: var(--accent); }
     $("code-filter").innerHTML = `<option value="">All checks</option>` +
       codes.map(([c, t]) => `<option value="${esc(c)}">${esc(c)} ${esc(t)}</option>`).join("");
     if (codes.some(([c]) => c === current)) $("code-filter").value = current;
+    document.querySelector("main").classList.add("wide");
+    renderAntimony();
     render();
   }
+
+  // ---- Antimony panel
+
+  const KEYWORDS = /\b(model|end|function|species|compartment|const|var|substanceOnly|in|at|after)\b/g;
+
+  function highlight(line) {
+    // Comments first; then keywords in the code part.
+    const i = line.indexOf("//");
+    const code = i >= 0 ? line.slice(0, i) : line;
+    const comment = i >= 0 ? line.slice(i) : "";
+    return esc(code).replace(KEYWORDS, '<span class="tk-k">$1</span>') +
+      (comment ? `<span class="tk-c">${esc(comment)}</span>` : "");
+  }
+
+  function renderAntimony() {
+    const text = report.antimony || "";
+    // The worst severity of the findings on each line.
+    const rank = { error: 3, warning: 2, info: 1 };
+    const worst = new Map();
+    for (const f of report.findings) {
+      if (f.line && (rank[f.severity] > (rank[worst.get(f.line)] || 0))) worst.set(f.line, f.severity);
+    }
+    $("ant").innerHTML = text.replace(/\n$/, "").split("\n").map((l, i) => {
+      const n = i + 1;
+      const w = worst.get(n);
+      const title = w ? ` title="Findings on this line: click to show them"` : "";
+      return `<div class="cl${w ? " mark " + w : ""}" id="L${n}"><span class="ln"${title}>${n}</span><span class="tx">${highlight(l)}</span></div>`;
+    }).join("");
+  }
+
+  function showLine(n) {
+    document.querySelectorAll(".cl.hl").forEach((e) => e.classList.remove("hl"));
+    const el = $("L" + n);
+    if (!el) return;
+    el.classList.add("hl");
+    const pane = $("ant");
+    pane.scrollTop = el.offsetTop - pane.offsetTop - pane.clientHeight / 3;
+    // On a narrow screen the panel is below the findings: bring it into view.
+    const r = pane.getBoundingClientRect();
+    if (r.top > innerHeight || r.bottom < 0) pane.scrollIntoView({ block: "center" });
+  }
+
+  $("ant").addEventListener("click", (e) => {
+    const ln = e.target.closest(".cl.mark .ln");
+    if (!ln) return;
+    const n = ln.parentElement.id.slice(1);
+    const card = document.querySelector(`.finding[data-line="${n}"]`);
+    showLine(n);
+    if (!card) {
+      status("The findings on this line are hidden by the filters.");
+      return;
+    }
+    card.scrollIntoView({ block: "center", behavior: "smooth" });
+    document.querySelectorAll(`.finding[data-line="${n}"]`).forEach((c) => {
+      c.classList.add("flash");
+      setTimeout(() => c.classList.remove("flash"), 1500);
+    });
+  });
+
+  $("ant-copy").onclick = () => {
+    navigator.clipboard.writeText(report.antimony || "").then(
+      () => status("Antimony copied to the clipboard."),
+      () => status("Could not copy to the clipboard.", true));
+  };
+  $("ant-save").onclick = () => {
+    const blob = new Blob([report.antimony || ""], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = fileName.replace(/\.[^.]*$/, "") + ".ant";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  $("list").addEventListener("click", (e) => {
+    const card = e.target.closest(".finding.linked");
+    if (card && !window.getSelection().toString()) showLine(card.dataset.line);
+  });
 
   function render() {
     const sev = new Set([...document.querySelectorAll("[data-sev]")]
@@ -362,11 +490,13 @@ footer a { color: var(--accent); }
       const law = f.reaction && f.reaction.includes("; ") ? f.reaction.slice(f.reaction.indexOf("; ") + 2) : null;
       if (expr && expr === law) expr = "";
       const el = f.kind === "model" ? "model" : `${esc(f.kind)} <code>${esc(f.id)}</code>`;
-      return `<div class="finding ${f.severity}">
+      const linked = f.line ? ` linked" data-line="${f.line}" title="Show in the Antimony model` : "";
+      return `<div class="finding ${f.severity}${linked}">
         <div class="f-head"><span class="sev ${f.severity}">${f.severity}</span>
           <span class="f-title">${esc(f.title)}</span>
           <span class="f-code mono">${esc(f.code)}</span>
-          <span class="f-el">${el}</span></div>
+          <span class="f-el">${el}</span>
+          ${f.line ? `<span class="f-line">line ${f.line}</span>` : ""}</div>
         ${f.reaction ? `<div class="f-rxn mono">${esc(f.reaction)}</div>` : ""}
         <div class="f-msg">${esc(lines.join("\n"))}</div>
         ${expr ? `<div class="f-expr mono">${esc(expr)}</div>` : ""}

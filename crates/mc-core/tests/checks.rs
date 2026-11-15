@@ -503,3 +503,40 @@ fn sbo_mass_action_with_template_modifier() {
     let r = run_sbo("species X\nJ1: => P; k*X\nX = 1; P = 0; k = 1", "SBO:0000049");
     assert_not!(r, SO_MASS_ACTION_MISMATCH);
 }
+
+// ------------------------------------------------- mass-action order
+
+#[test]
+fn mass_action_order_matches_stoichiometry() {
+    let r = run("J1: 2 A => B; k*A^2\nA = 1; B = 0; k = 1");
+    assert_not!(r, RL_MASS_ACTION_ORDER);
+    let r = run("J1: A + B -> 2 C; k1*A*B - k2*C^2\nA = 1; B = 1; C = 0; k1 = 1; k2 = 1");
+    assert_not!(r, RL_MASS_ACTION_ORDER);
+    // Autocatalysis: X on both sides, first order in X.
+    let r = run("J1: A + X => 2 X; k*A*X\nA = 1; X = 1; k = 1");
+    assert_not!(r, RL_MASS_ACTION_ORDER);
+}
+
+#[test]
+fn mass_action_order_differs() {
+    let r = run("J1: 2 A => B; k*A\nA = 1; B = 0; k = 1");
+    assert_has!(r, RL_MASS_ACTION_ORDER);
+    let r = run("J1: A -> 2 B; k1*A - k2*B\nA = 1; B = 0; k1 = 1; k2 = 1");
+    assert_has!(r, RL_MASS_ACTION_ORDER);
+}
+
+#[test]
+fn mass_action_order_ignores_other_shapes() {
+    // Michaelis-Menten is not mass action; a modifier-driven synthesis has
+    // no reactant to compare.
+    let r = run("J1: 2 A => B; Vm*A/(Km + A)\nA = 1; B = 0; Vm = 1; Km = 1");
+    assert_not!(r, RL_MASS_ACTION_ORDER);
+    let r = run("species E\nJ1: => P; k*E\nE = 1; P = 0; k = 1");
+    assert_not!(r, RL_MASS_ACTION_ORDER);
+}
+
+#[test]
+fn mass_action_order_skips_power_law() {
+    let r = run("J1: A => B; a*A^g\nA = 1; B = 0; a = 1; g = 0.5");
+    assert_not!(r, RL_MASS_ACTION_ORDER);
+}

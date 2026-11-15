@@ -39,7 +39,9 @@ fn write(m: &Math, outer: u8, s: &mut String) {
             }
         }
         Math::Ident(id) => s.push_str(id),
-        Math::Symbol(sym) => s.push_str(&sym.name),
+        // Standard names, as Antimony and most tools write them, whatever
+        // name the csymbol was given.
+        Math::Symbol(sym) => s.push_str(symbol_name(sym)),
         Math::Constant(c) => s.push_str(match c {
             Constant::True => "true",
             Constant::False => "false",
@@ -50,7 +52,7 @@ fn write(m: &Math, outer: u8, s: &mut String) {
         }),
         Math::Apply(op, args) => apply(*op, args, outer, s),
         Math::Call(name, args) => call(name, args, s),
-        Math::CallSymbol(sym, args) => call(&sym.name, args, s),
+        Math::CallSymbol(sym, args) => call(symbol_name(sym), args, s),
         Math::Root { degree, arg } => match degree {
             None => call("sqrt", std::slice::from_ref(arg), s),
             Some(d) => call("root", &[(**d).clone(), (**arg).clone()], s),
@@ -88,6 +90,16 @@ fn write(m: &Math, outer: u8, s: &mut String) {
         }
         Math::Semantics { math, .. } => write(math, outer, s),
         Math::Raw(_) => s.push_str("<unknown MathML>"),
+    }
+}
+
+fn symbol_name(sym: &sbml_io::Symbol) -> &str {
+    match sym.url.as_str() {
+        sbml_io::Symbol::TIME => "time",
+        sbml_io::Symbol::AVOGADRO => "avogadro",
+        sbml_io::Symbol::DELAY => "delay",
+        sbml_io::Symbol::RATE_OF => "rateOf",
+        _ => &sym.name,
     }
 }
 

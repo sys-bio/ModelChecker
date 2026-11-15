@@ -22,6 +22,7 @@ pub const RL_UNDECLARED_SPECIES: &str = "RL009";
 pub const RL_UNUSED_MODIFIER: &str = "RL010";
 pub const RL_EMPTY_REACTION: &str = "RL011";
 pub const RL_SINGULAR_INITIAL: &str = "RL012";
+pub const RL_MASS_ACTION_ORDER: &str = "RL013";
 
 pub const SY_UNDEFINED: &str = "SY001";
 pub const SY_UNUSED_PARAMETER: &str = "SY002";
@@ -55,6 +56,14 @@ pub const SB_STRUCTURE: &str = "SB003";
 pub const SB_NO_MODEL: &str = "SB004";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: RL_MASS_ACTION_ORDER,
+        title: "Mass-action order differs from stoichiometry",
+        help: "The rate law has the form of mass action (a constant times powers of \
+               species, minus a similar reverse term), but a species appears to a power \
+               other than its stoichiometry, as in k*A for 2 A -> B. For an elementary \
+               reaction this is a mistake; for a non-elementary one it may be intended.",
+    },
     Code {
         code: SO_UNKNOWN,
         title: "Unknown SBO term",

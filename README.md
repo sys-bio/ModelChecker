@@ -32,6 +32,7 @@ your computer. There is also a command-line tool for checking whole folders.
 | RL009 | warning  | Species used in a rate law but not declared as reactant, product or modifier |
 | RL010 | info     | Modifier not used by the rate law |
 | RL011 | warning  | Reaction with no reactants and no products |
+| RL013 | warning  | Mass-action rate law whose powers differ from the stoichiometry (e.g. `k*A` for `2 A -> B`) |
 | UN001 | warning  | Rate law units differ from extent per time |
 | UN002 | warning  | Adds, subtracts or compares quantities of different dimensions |
 | UN003 | warning  | Same, with the same dimensions but a different scale (mM vs M) |
@@ -94,8 +95,19 @@ your computer. There is also a command-line tool for checking whole folders.
   the same reason (off by the same ratio, or missing the same compartment's
   volume), they are reported as one model-level finding that lists the
   reactions and suggests the shared cause.
+- **Mass-action order.** A rate law of mass-action form (one forward term,
+  at most one reverse term) should raise each species to its stoichiometry.
+  Only plausibly elementary reactions are checked: whole-number
+  stoichiometries, at most three molecules a side, and no power-law
+  (GMA/S-system) exponents.
 - **Context.** Each finding about a reaction shows the reaction itself,
-  e.g. `J4: S4 -> ; k4*(S4 + E)`, with `$` marking boundary species.
+  e.g. `J4: S4 -> ; k4*(S4 + E)`, with `$` marking boundary species. The
+  page also shows the whole model as Antimony beside the findings. Click a
+  finding to see it in the model, or click a marked line to see its
+  findings. Ids that are Antimony keywords, such as a compartment called
+  `compartment`, are written with a trailing `_`. Every BioModels model
+  converts to Antimony that the antimony crate parses
+  (`cargo run --release -p mc-core --example ant_roundtrip -- FOLDER`).
 - **Conservation.** A witness that empties a whole conserved moiety (found
   from the stoichiometry matrix) is not a reachable state, so it is not used.
 

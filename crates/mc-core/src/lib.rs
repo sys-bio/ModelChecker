@@ -22,6 +22,7 @@
 //! assert!(report.findings.iter().any(|f| f.code == mc_core::codes::RL_ZERO_ORDER));
 //! ```
 
+pub mod antimony_out;
 pub mod checks;
 pub mod codes;
 pub mod eval;
@@ -46,6 +47,9 @@ pub struct Report {
     pub model_id: Option<String>,
     pub model_name: Option<String>,
     pub findings: Vec<Finding>,
+    /// The model as Antimony, with each element's line, for reading
+    /// alongside the findings.
+    pub antimony: Option<antimony_out::AntimonyText>,
 }
 
 impl Report {
@@ -63,6 +67,7 @@ pub fn check(xml: &str) -> Report {
         model_id: None,
         model_name: None,
         findings: Vec::new(),
+        antimony: None,
     };
     let read = match sbml_io::read(xml) {
         Ok(r) => r,
@@ -117,6 +122,7 @@ pub fn check(xml: &str) -> Report {
     report.model_id = model.id.clone();
     report.model_name = model.name.clone();
     report.findings.extend(checks::run(model, doc.level));
+    report.antimony = Some(antimony_out::to_antimony(model));
     // Show the reaction itself with every finding about one.
     for f in &mut report.findings {
         let id = match &f.element {

@@ -38,9 +38,24 @@ pub fn report(r: &Report) -> String {
         field_opt_str(&mut s, "witness", f.witness.as_deref());
         s.push(',');
         field_opt_str(&mut s, "reaction", f.reaction.as_deref());
+        s.push(',');
+        // The element's line in the Antimony text.
+        let line = r
+            .antimony
+            .as_ref()
+            .and_then(|a| a.line_of(f.element.kind(), &f.element.id()));
+        string(&mut s, "line");
+        s.push(':');
+        match line {
+            Some(l) => s.push_str(&l.to_string()),
+            None => s.push_str("null"),
+        }
         s.push('}');
     }
-    s.push_str("]}");
+    s.push(']');
+    s.push(',');
+    field_opt_str(&mut s, "antimony", r.antimony.as_ref().map(|a| a.text.as_str()));
+    s.push('}');
     s
 }
 
