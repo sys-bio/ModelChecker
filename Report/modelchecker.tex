@@ -1,0 +1,166 @@
+% Model Checker: a report for Zenodo.
+% Build: pdflatex, bibtex, pdflatex, pdflatex (main file modelchecker.tex),
+% or: latexmk -pdf modelchecker.tex
+\documentclass[10pt]{article}
+\usepackage[a4paper,margin=1.8cm,top=1.6cm]{geometry}
+\usepackage{multicol}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage[compact]{titlesec}
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{0.6em}{}
+\titlespacing*{\section}{0pt}{0.9em}{0.2em}
+\setlength{\bibsep}{0pt plus 0.3ex}
+\setlength{\parskip}{0.25em}
+\setlength{\parindent}{0pt}
+
+\title{\vspace{-2.5em}Model Checker: Static Analysis of Kinetic SBML Models}
+% Inside \author there can be no blank lines: use \\ for line breaks.
+\author{Herbert M. Sauro$^{1,2}$\\[0.5ex]
+  \small $^{1}$Department of Bioengineering and $^{2}$eScience Institute, University of Washington, Seattle, WA, 98195-5061, USA
+}
+\date{\vspace{-1ex}\small Version 1.0.0, November 2026. DOI: \href{https://doi.org/10.5281/zenodo.24265079}{10.5281/zenodo.24265079}}
+
+\begin{document}
+\maketitle
+\vspace{-2em}
+
+\begin{abstract}
+\noindent
+Model Checker examines kinetic models written in SBML for errors that a schema or consistency validator does
+not detect but that cause a simulation to fail or to give misleading results. Such errors include rate laws that cannot be
+evaluated, reactions that can drive a species negative, rate laws inconsistent with their reaction's
+stoichiometry, inconsistent units, thermodynamically inconsistent reversible reactions, and invalid or
+misplaced annotations. The current version performs only static checks, that is it examines the model's equations and structure without
+simulating it. Three techniques are used. Interval arithmetic evaluates each rate law over the whole range of
+values its variables can take, which shows whether the rate can become undefined (for example by division by
+zero) or can continue to consume a species that has reached zero. The stoichiometry matrix gives the
+conservation laws, the species that can never be produced, and the cycles of reversible reactions whose
+equilibrium constants are tested for thermodynamic consistency. Dimensional analysis compares the units of the
+terms in each expression. Where possible, a finding includes a specific example, such as values of the
+species at which a rate law divides by zero, so that the problem can be confirmed directly. The software is written in Rust and runs either as a command-line program or
+in the web browser, compiled to WebAssembly; in the browser the analysis runs locally and the model is not sent
+to a server. The web version also shows the model as Antimony text beside the findings, so that the model can be
+corrected and checked again; edits are merged back into the original SBML.
+
+\noindent\textbf{Availability:} \url{https://sys-bio.github.io/ModelChecker/} (web application);\\
+\url{https://github.com/sys-bio/ModelChecker} (source, MIT licence).
+\end{abstract}
+
+\section{Background}
+SBML \cite{hucka2003sbml} is the common exchange format for kinetic models in systems biology. libSBML
+\cite{bornstein2008libsbml} validates a document against the specification, checking syntax, references
+and, where units are declared, unit consistency. A model can pass these checks and still be unusable: a
+Michaelis--Menten denominator that is zero at the initial state, a degradation reaction written as a
+constant rate that continues to consume a species after it reaches zero, or a reversible rate law whose
+equilibrium constant depends on an effector. Such errors are usually found only when a simulation fails, and may then be
+difficult to trace to their source. MEMOTE
+\cite{lieven2020memote} provides a test suite of this kind for genome-scale constraint-based models; Model
+Checker addresses kinetic models, in which the rate laws themselves are the main source of error.
+
+\section{Checks}
+Version 1.0.0 has 80 finding codes in twelve groups (Table~\ref{tab:checks}). Each finding has a severity:
+\emph{error} (a simulation will fail, or the model is ill-defined), \emph{warning} (the model is probably not
+what was intended) or \emph{info} (worth knowing; often harmless). Function definitions and assignment rules
+are substituted into the expressions that use them; species are non-negative unless they start negative.
+
+\begin{table}[ht]
+\centering\footnotesize
+\begin{tabularx}{\textwidth}{@{}lrX@{}}
+\toprule
+Group & Codes & Examples \\
+\midrule
+Rate laws (RL) & 13 & rate cannot be evaluated at the initial state or at a reachable state; species can become negative; zero-order consumption; reactant missing from the rate law; mass-action powers differ from stoichiometry \\
+Rules and events (RU) & 9 & cyclic assignment or initial-assignment rules; variable set more than once; constant set by a rule; event trigger true at $t=0$ or never able to fire \\
+Network (NW) & 7 & conservation laws; species that can never be produced and the reactions that therefore never run; disconnected subnetworks \\
+Thermodynamics (TD) & 2 & Haldane relation violated; Wegscheider condition violated around a cycle of reversible reactions \\
+Units (UN) & 8 & rate law not in extent per time; sum or comparison of different dimensions or scales; missing compartment volume factor \\
+Values (VA) & 6 & parameter value inconsistent with its role (e.g.\ negative $K_m$); reaction with zero rate; rate constants spanning ten or more orders of magnitude \\
+SBO terms (SO) & 8 & invalid or obsolete term; term from the wrong branch; kinetic law labelled mass action or Hill that does not have that form \\
+Annotations (MD) & 7 & missing database links or model metadata; identifier invalid for its database; qualifier inappropriate for the element \\
+Symbols (SY) & 7 & undefined, unused or shadowed symbols; symbol with no value \\
+Other (SB, FT, AN) & 13 & structural problems; features many simulators do not support (fast reactions, delays, algebraic rules, SBML packages); Antimony errors \\
+\bottomrule
+\end{tabularx}
+\vspace{-0.8em}
+\caption{Groups of checks. The full list, with severities, is in the repository README.}
+\label{tab:checks}
+\end{table}
+\vspace{-1.2em}
+
+\section{Methods}
+\textbf{Evaluability.} Each rate law and rule is evaluated by interval arithmetic \cite{moore2009interval}
+over the states the model could reach, which shows in one evaluation whether a division by zero, logarithm of
+zero or similar fault is possible. If so, a concrete point is sought. A fault at the initial values is an error, a fault at some other reachable state a warning, and a
+fault that interval arithmetic cannot rule out but for which no point is found is reported for information
+only, because interval bounds overestimate.
+
+\textbf{Positivity.} For a species $S$ with net stoichiometry $n$ in a reaction of rate $v$, the model
+preserves $S \ge 0$ only if $n\,v \ge 0$ whenever $S = 0$. This is tested from the rate law alone; the
+\texttt{reversible} attribute is not used. A counterexample is first sought with the other variables between
+zero and their initial values; one found only outside that range is reported for information, since it
+commonly reflects a part exceeding its total (as in $E_T - ES$).
+
+\textbf{Network structure.} Conservation laws are computed from the left null space of the stoichiometry
+matrix \cite{sauro2004conservation} and
+expressed with few negative coefficients ($S + ES + P$). Species that can never become non-zero are found by a fixed-point
+calculation related to the empty-siphon analysis of Petri nets \cite{angeli2007petri}. Starting with all
+species at zero, a species is released when some reaction can produce it, where whether a reaction can run,
+and in which direction, is decided from its rate law by interval arithmetic rather than from its reactant list.
+
+\textbf{Thermodynamics.} For a reversible rate law depending on both reactants and products, the mass-action
+ratio at which the rate is zero is located numerically at several random states. A consistent rate law gives
+a single value, its equilibrium constant. Around each cycle of reversible reactions (from the null space of the stoichiometry matrix with
+boundary species) the product of equilibrium constants must be 1 within 1\%.
+
+\textbf{Units and annotations.} Units are inferred from declared units as SI exponents with a scale factor;
+a parameter without units makes any expression containing it unknown, so unit findings are raised only where
+the model declares enough to support them. Database links \cite{lenovere2005miriam} are checked against a
+built-in copy of the identifiers.org registry \cite{wimalaratne2018identifiers}, for a known namespace and
+an identifier of the correct form, and \texttt{bqbiol:is} links for the kind of entity they name. SBO terms
+\cite{courtot2011sbo} are checked against a built-in copy of the ontology, both for the branch the element
+permits and, for kinetic laws, against the form of the rate law.
+
+\section{Implementation and testing}
+The software is written in Rust as five crates: an SBML reader and writer (Levels 2 and 3), an Antimony
+\cite{smith2009antimony} parser, the checks (without input or output, so that they compile to WebAssembly),
+a command-line program for files or directories, and the web page. The web page shows the model as editable Antimony model
+beside the findings. The original SBML remains the reference copy. An edit is merged by comparing the edited
+text with the text as first generated, so content the text does not represent (notes, other tools'
+annotations, layouts) is retained. On the curated BioModels collection \cite{malik2020biomodels}, unedited text reproduced the
+original document exactly for all 1,075 models, and single edits of a value, rate law, SBO term, unit or
+database link changed only the edited item in every model tested. The repository has 141 automated tests.
+
+\section{Limitations}
+Findings should be read as evidence for
+inspection, not as proof. Interval arithmetic overestimates ranges; the thermodynamic tests sample a finite
+number of states; unit checks are only as complete as the units the model declares. Reachability is approximated, not computed, so
+a reported counterexample state may not be reachable from the initial conditions. SBML Level 1 is not read, and of hierarchical (\texttt{comp}) models only the top-level model
+is checked. The rate of false positives on a large corpus has not yet been measured systematically.
+
+{\footnotesize
+% TODO (author): review and rewrite this section in your own words, as for the PathwayAnnotator report.
+\textbf{Use of AI.} Claude Code (Anthropic, Opus 5.5) was used to assist in writing the software and in preparing this report,
+including writing and debugging code, writing tests, and managing commits to the GitHub repository. The test
+suite and the Rust linter Clippy were run on the code before each commit. The author reviewed, verified and
+edited all generated content and takes full responsibility for the integrity and accuracy of the final
+publication. Lessons for AI-assisted development as reported for Iridium~\cite{iridium2026} were employed
+throughout.
+
+\textbf{Acknowledgements.} This work was supported by NIH Biomedical Imaging and Bioengineering award P41 EB023912 through HMS at the
+Center for Reproducible Biomedical Modeling (\url{https://reproduciblebiomodels.org}).
+}
+
+{\footnotesize
+\begin{multicols}{2}
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+\end{multicols}
+}
+
+\end{document}

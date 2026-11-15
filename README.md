@@ -254,6 +254,16 @@ Pushing to `main` builds and deploys the page to GitHub Pages
 (`.github/workflows/ci.yml`). This needs a one-time setting on GitHub:
 Settings -> Pages -> Source: GitHub Actions.
 
+## Citing
+
+A short report describing version 1.0.0 is archived on Zenodo:
+
+Sauro, H. M. (2026). *Model Checker: Static Analysis of Kinetic SBML
+Models*, version 1.0.0. Zenodo.
+[doi:10.5281/zenodo.24265079](https://doi.org/10.5281/zenodo.24265079)
+
+The LaTeX source of the report is in `Report/`.
+
 ## Funding
 
 This work was supported by NIH Biomedical Imaging and Bioengineering award

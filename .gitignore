@@ -1,2 +1,10 @@
 /target
 /crates/mc-web/dist
+/Report/*.aux
+/Report/*.bbl
+/Report/*.blg
+/Report/*.fdb_latexmk
+/Report/*.fls
+/Report/*.log
+/Report/*.out
+/Report/build.out
