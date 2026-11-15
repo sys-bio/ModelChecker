@@ -50,6 +50,16 @@ pub const SO_NOT_MASS_ACTION: &str = "SO006";
 pub const SO_MASS_ACTION_MISMATCH: &str = "SO007";
 pub const SO_SHAPE_MISMATCH: &str = "SO008";
 
+pub const RU_RULE_LOOP: &str = "RU001";
+pub const RU_INITIAL_LOOP: &str = "RU002";
+pub const RU_SET_TWICE: &str = "RU003";
+pub const RU_CONSTANT_CHANGED: &str = "RU004";
+pub const RU_ALGEBRAIC: &str = "RU005";
+pub const RU_TRIGGER_TRUE_AT_START: &str = "RU006";
+pub const RU_EVENT_NEVER: &str = "RU007";
+pub const RU_EVENT_EMPTY: &str = "RU008";
+pub const RU_NEGATIVE_DELAY: &str = "RU009";
+
 pub const NW_ONLY_PRODUCED: &str = "NW001";
 pub const NW_ONLY_CONSUMED: &str = "NW002";
 pub const NW_UNUSED_SPECIES: &str = "NW003";
@@ -70,6 +80,60 @@ pub const SB_STRUCTURE: &str = "SB003";
 pub const SB_NO_MODEL: &str = "SB004";
 
 pub const ALL: &[Code] = &[
+    Code {
+        code: RU_RULE_LOOP,
+        title: "Rules in a loop",
+        help: "Assignment rules depend on each other in a circle (in Level 3, possibly through \
+               a reaction's rate), so none can be computed. SBML does not allow this.",
+    },
+    Code {
+        code: RU_INITIAL_LOOP,
+        title: "Initial values in a loop",
+        help: "Initial assignments (with assignment rules) depend on each other in a circle, \
+               so the initial values cannot be worked out. SBML does not allow this.",
+    },
+    Code {
+        code: RU_SET_TWICE,
+        title: "Set more than once",
+        help: "A variable is set in two ways that conflict: two rules, an assignment rule and \
+               an initial assignment, an assignment rule and an event, or reactions and a \
+               rule on a species that is not a boundary species. SBML does not allow this.",
+    },
+    Code {
+        code: RU_CONSTANT_CHANGED,
+        title: "Constant changed",
+        help: "Something marked constant is set by a rule or changed by an event.",
+    },
+    Code {
+        code: RU_ALGEBRAIC,
+        title: "Algebraic rules",
+        help: "The model uses algebraic rules (constraints of the form 0 = f(...)). Many \
+               simulators do not support them.",
+    },
+    Code {
+        code: RU_TRIGGER_TRUE_AT_START,
+        title: "Trigger true at the start",
+        help: "An event's trigger is already true at the initial values. Depending on the \
+               trigger's initialValue, the event either fires at once at time 0 or does not \
+               fire until the trigger goes false and then true again; either may be a \
+               surprise.",
+    },
+    Code {
+        code: RU_EVENT_NEVER,
+        title: "Event never fires",
+        help: "The event's trigger depends on nothing that changes during a simulation, so it \
+               can never become true.",
+    },
+    Code {
+        code: RU_EVENT_EMPTY,
+        title: "Event does nothing",
+        help: "The event has no event assignments.",
+    },
+    Code {
+        code: RU_NEGATIVE_DELAY,
+        title: "Negative delay",
+        help: "An event's delay is negative at the start; delays must not be negative.",
+    },
     Code {
         code: NW_ONLY_PRODUCED,
         title: "Only produced",

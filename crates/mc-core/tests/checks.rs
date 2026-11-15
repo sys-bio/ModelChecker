@@ -642,3 +642,66 @@ fn unused_species_and_no_effect_reaction() {
     let r = run("J1: $X => $Y; k*X\nX = 1; Y = 0; k = 1");
     assert_has!(r, NW_NO_EFFECT);
 }
+
+// ------------------------------------------------- rules and events
+
+#[test]
+fn rules_in_a_loop() {
+    // Antimony refuses circular rules, so make the loop in the SBML: y := 2*x.
+    let mut d = doc("x := y + 1\ny := 2*S\nJ1: S => P; k*S*x\nS = 1; P = 0; k = 1");
+    for rule in &mut d.model.as_mut().unwrap().rules {
+        if let sbml_io::Rule::Assignment { variable, math, .. } = rule
+            && variable == "y"
+        {
+            *math = Some(sbml_io::Math::Apply(
+                sbml_io::Op::Times,
+                vec![sbml_io::Math::int(2), sbml_io::Math::ident("x")],
+            ));
+        }
+    }
+    let r = mc_core::check(&sbml_io::write(&d));
+    let f = r.findings.iter().find(|f| f.code == RU_RULE_LOOP).unwrap_or_else(|| panic!("{}", show(&r)));
+    assert_eq!(f.severity, Severity::Error);
+    assert!(f.message.contains("x depends on y") || f.message.contains("y depends on x"), "{}", f.message);
+    let r = run("x := y + 1\ny := 2*S\nJ1: S => P; k*S*x\nS = 1; P = 0; k = 1");
+    assert_not!(r, RU_RULE_LOOP);
+}
+
+#[test]
+fn rule_and_event_set_the_same_variable() {
+    let r = run("x := 2*S\nJ1: S => P; k*S*x\nE1: at time > 5: x = 3\nS = 1; P = 0; k = 1");
+    assert_has!(r, RU_SET_TWICE);
+}
+
+#[test]
+fn species_in_reactions_set_by_a_rule() {
+    let mut d = doc("J1: S => P; k*S\nS = 1; P = 0; k = 1");
+    d.model.as_mut().unwrap().rules.push(sbml_io::Rule::Rate {
+        variable: "P".into(),
+        math: Some(sbml_io::Math::real(1.0)),
+        meta: Default::default(),
+    });
+    let r = mc_core::check(&sbml_io::write(&d));
+    assert_has!(r, RU_SET_TWICE);
+}
+
+#[test]
+fn constant_changed_by_an_event() {
+    let mut d = doc("J1: S => P; k*S\nE1: at time > 5: k = 2\nS = 1; P = 0; k = 1");
+    let m = d.model.as_mut().unwrap();
+    m.parameters.iter_mut().find(|p| p.id == "k").unwrap().constant = Some(true);
+    let r = mc_core::check(&sbml_io::write(&d));
+    assert_has!(r, RU_CONSTANT_CHANGED);
+}
+
+#[test]
+fn trigger_true_at_start_and_never_firing() {
+    let r = run("J1: S => P; k*S\nE1: at S > 0.5: k = 2\nS = 1; P = 0; k = 1");
+    assert_has!(r, RU_TRIGGER_TRUE_AT_START);
+    let r = run("J1: S => P; k*S\nE1: at S < 0.5: k = 2\nS = 1; P = 0; k = 1");
+    assert_not!(r, RU_TRIGGER_TRUE_AT_START);
+    assert_not!(r, RU_EVENT_NEVER);
+    // q never changes and q > 5 is false: the event can never fire.
+    let r = run("J1: S => P; k*S\nE1: at q > 5: k = 2\nS = 1; P = 0; k = 1; q = 1");
+    assert_has!(r, RU_EVENT_NEVER);
+}

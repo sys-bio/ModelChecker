@@ -4,6 +4,7 @@ mod mass_action;
 mod network;
 mod poly;
 mod reactions;
+mod rules;
 mod sbo;
 pub mod scope;
 mod singular;
@@ -58,6 +59,7 @@ pub fn run(model: &Model, level: u32) -> Vec<Finding> {
     mass_action::check(&mut ctx);
     thermo::check(&mut ctx);
     network::check(&mut ctx);
+    rules::check(&mut ctx);
     units::check(&mut ctx);
     sbo::check(&mut ctx);
     ctx.findings

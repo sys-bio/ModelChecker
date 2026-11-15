@@ -33,6 +33,15 @@ your computer. There is also a command-line tool for checking whole folders.
 | RL010 | info     | Modifier not used by the rate law |
 | RL011 | warning  | Reaction with no reactants and no products |
 | RL013 | warning  | Mass-action rate law whose powers differ from the stoichiometry (e.g. `k*A` for `2 A -> B`) |
+| RU001 | error    | Assignment rules depending on each other in a loop (in Level 3, possibly through a reaction's rate) |
+| RU002 | error    | Initial assignments (with rules) depending on each other in a loop |
+| RU003 | error    | Variable set more than once: two rules, a rule and an initial assignment, a rule and an event, or reactions and a rule on a non-boundary species |
+| RU004 | error    | Something marked constant that a rule or event sets |
+| RU005 | info     | Algebraic rules (many simulators do not support them) |
+| RU006 | warning  | Event trigger already true at the initial values (says whether the event then fires at time 0 or waits) |
+| RU007 | warning  | Event that can never fire: its trigger depends on nothing that changes |
+| RU008 | info     | Event with no assignments |
+| RU009 | warning  | Negative event delay |
 | NW001 | info     | Species only produced, never consumed (accumulates) |
 | NW002 | info     | Species only consumed, never produced (runs down) |
 | NW003 | info     | Species in no reaction, rule or event, and used nowhere |
