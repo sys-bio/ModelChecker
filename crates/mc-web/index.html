@@ -150,6 +150,14 @@ code, .mono { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; f
 }
 #drop.over { background: var(--drop); border-color: var(--accent); }
 #drop p { margin: 0 0 12px; }
+#paste-dlg { width: min(760px, calc(100vw - 32px)); max-width: none; }
+#paste-text {
+  display: block; box-sizing: border-box; width: 100%; height: 18em; margin-top: 8px;
+  padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px;
+  background: var(--bg); color: var(--text); resize: vertical;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: 13px;
+}
+#paste-dlg form { display: flex; gap: 8px; justify-content: flex-end; }
 button, .button {
   font: inherit;
   padding: 7px 14px;
@@ -265,10 +273,11 @@ footer a { color: var(--accent); }
   </header>
 
   <section id="drop">
-    <p>Drop an SBML file here, or</p>
+    <p>Drop an SBML or Antimony file here, or</p>
     <button class="primary" id="pick" disabled>Choose file</button>
+    <button id="paste" disabled>Paste Antimony</button>
     <button id="example" disabled>Try an example</button>
-    <input type="file" id="file" accept=".xml,.sbml" hidden>
+    <input type="file" id="file" accept=".xml,.sbml,.ant,.txt" hidden>
     <div class="privacy">The model never leaves your computer: all checks run in your browser.</div>
   </section>
 
@@ -325,6 +334,17 @@ footer a { color: var(--accent); }
   </footer>
 </main>
 
+<dialog id="paste-dlg" aria-labelledby="paste-title">
+  <h2 id="paste-title">Paste an Antimony model</h2>
+  <p>Paste or type the model, then press Check (or Ctrl+Enter).</p>
+  <textarea id="paste-text" spellcheck="false" wrap="off" autocomplete="off" autocapitalize="off"
+            aria-label="Antimony model" placeholder="A -> B; k1*A&#10;k1 = 0.1&#10;A = 10"></textarea>
+  <form method="dialog">
+    <button value="cancel">Cancel</button>
+    <button class="primary" id="paste-check" value="check">Check</button>
+  </form>
+</dialog>
+
 <dialog id="about" aria-labelledby="about-title">
   <h2 id="about-title">About Model Checker</h2>
   <p>Model Checker runs static checks on kinetic SBML models (Levels 2 and 3), entirely in
@@ -356,6 +376,9 @@ footer a { color: var(--accent); }
   // changed since it was last checked.
   let edited = false;
   let dirty = false;
+  // Whether the model was loaded as Antimony. Then the text, not an SBML
+  // file, is the master copy: every check converts the text afresh.
+  let fromAntimony = false;
 
   const $ = (id) => document.getElementById(id);
   const status = (text, bad) => {
@@ -370,6 +393,7 @@ footer a { color: var(--accent); }
     api = bindings;
     $("pick").disabled = false;
     $("example").disabled = false;
+    $("paste").disabled = false;
     // Version, and the commit and date this page was built from, so a user
     // can tell whether they have the latest.
     const commit = api.build_commit();
@@ -385,7 +409,7 @@ footer a { color: var(--accent); }
     const text = `${esc(api.version())}, ${build}`;
     $("version").innerHTML = text;
     $("about-version").innerHTML = text;
-    status("Ready. Choose an SBML file (Level 2 or 3).");
+    status("Ready. Choose an SBML file (Level 2 or 3) or an Antimony file, or paste Antimony.");
     const codes = JSON.parse(api.finding_codes());
     $("codes").innerHTML = codes.map((c) =>
       `<tr><td><code>${esc(c.code)}</code></td><td><strong>${esc(c.title)}</strong><br>${esc(c.help)}</td></tr>`
@@ -394,24 +418,35 @@ footer a { color: var(--accent); }
   if (window.wasmBindings) ready(window.wasmBindings);
   addEventListener("TrunkApplicationStarted", () => ready(window.wasmBindings));
 
+  // SBML is XML, so starts with "<"; Antimony never does. (trimStart also
+  // drops a byte-order mark.)
+  const isAntimony = (text) => !text.trimStart().startsWith("<");
+
   function run(text, name) {
     fileName = name;
+    const ant = isAntimony(text);
     status("Checking " + name + "...");
     // Let the status paint before the (synchronous) check runs.
     setTimeout(() => {
       const t0 = performance.now();
       try {
-        report = JSON.parse(api.check_sbml(text));
+        report = JSON.parse(ant ? api.check_antimony(text) : api.check_sbml(text));
       } catch (e) {
-        status("The checker failed on this file: " + e, true);
+        status("The checker failed on this " + (ant ? "model" : "file") + ": " + e, true);
         return;
       }
       const ms = Math.round(performance.now() - t0);
-      status("Checked " + name + " in " + ms + " ms.");
+      const errors = ant ? report.findings.filter((f) => f.code === "AN001").length : 0;
+      status(errors
+        ? `${name} has ${errors} Antimony error${errors > 1 ? "s" : ""}: fix ${errors > 1 ? "them" : "it"} in the panel and re-check.`
+        : "Checked " + name + " in " + ms + " ms.", errors > 0);
+      fromAntimony = ant;
       original = report;
-      originalXml = text;
+      originalXml = ant ? "" : text;
       edited = false;
       dirty = false;
+      // Antimony keeps the text exactly as loaded.
+      if (ant) $("ant-edit").value = text;
       show();
     }, 10);
   }
@@ -423,7 +458,9 @@ footer a { color: var(--accent); }
     $("model-name").textContent = name;
     $("model-meta").textContent = edited
       ? "edited in the Antimony panel"
-      : base.level
+      : fromAntimony
+        ? "Antimony"
+        : base.level
         ? `SBML Level ${base.level} Version ${base.version}` + (base.modelId && base.modelId !== name ? ` - ${base.modelId}` : "")
         : "";
     for (const s of ["error", "warning", "info"]) {
@@ -448,7 +485,7 @@ footer a { color: var(--accent); }
     const parseErrors = report.findings.some((f) => f.code === "AN001");
     $("ant-recheck").disabled = !dirty;
     $("ant-revert").hidden = !(edited || dirty);
-    $("ant-sbml").hidden = !edited || dirty || parseErrors;
+    $("ant-sbml").hidden = !(edited || fromAntimony) || dirty || parseErrors;
   }
 
   function recheck() {
@@ -458,7 +495,7 @@ footer a { color: var(--accent); }
     try {
       // The edit is merged into the original file: anything the text does
       // not show (units, SBO terms, annotations) is kept.
-      report = JSON.parse(api.check_edit(originalXml, text));
+      report = JSON.parse(fromAntimony ? api.check_antimony(text) : api.check_edit(originalXml, text));
     } catch (e) {
       status("The checker failed on the edited model: " + e, true);
       return;
@@ -561,12 +598,13 @@ footer a { color: var(--accent); }
   $("ant-save").onclick = () =>
     download($("ant-edit").value, stem() + (edited || dirty ? "-edited" : "") + ".ant", "text/plain");
   $("ant-sbml").onclick = () => {
-    const xml = api.edited_sbml(originalXml, $("ant-edit").value);
+    const text = $("ant-edit").value;
+    const xml = fromAntimony ? api.antimony_sbml(text) : api.edited_sbml(originalXml, text);
     if (!xml) {
-      status("The edited text has errors, so it cannot be saved as SBML.", true);
+      status("The text has errors, so it cannot be saved as SBML.", true);
       return;
     }
-    download(xml, stem() + "-edited.xml", "application/xml");
+    download(xml, stem() + (edited ? "-edited" : "") + ".xml", "application/xml");
   };
   $("ant-recheck").onclick = recheck;
   $("ant-revert").onclick = revert;
@@ -649,6 +687,27 @@ footer a { color: var(--accent); }
   }
 
   $("about-open").onclick = () => $("about").showModal();
+  $("paste").onclick = () => {
+    // Escape keeps the last returnValue, so clear it.
+    $("paste-dlg").returnValue = "";
+    $("paste-dlg").showModal();
+    $("paste-text").focus();
+  };
+  $("paste-dlg").addEventListener("close", () => {
+    const text = $("paste-text").value;
+    if ($("paste-dlg").returnValue !== "check") return;
+    if (!text.trim()) {
+      status("Nothing was pasted.", true);
+      return;
+    }
+    run(text, "pasted.ant");
+  });
+  $("paste-text").addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      $("paste-dlg").close("check");
+    }
+  });
   $("pick").onclick = () => $("file").click();
   $("file").onchange = (e) => readFile(e.target.files[0]);
   $("example").onclick = () => {

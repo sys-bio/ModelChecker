@@ -157,6 +157,52 @@ pub fn edited_sbml(original_xml: &str, edited: &str) -> Option<String> {
         .map(|e| sbml_io::write(&e.document))
 }
 
+/// An Antimony model as SBML; `None` if the text has errors.
+pub fn antimony_sbml(text: &str) -> Option<String> {
+    let loaded = antimony::parse(text);
+    (!loaded.has_errors()).then(|| antimony::sbml::write_sbml(&loaded.document))
+}
+
+/// A document with an empty model, for checking Antimony text that cannot
+/// be converted: [`check_edit`] then reports the text's errors.
+const EMPTY_SBML: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<sbml xmlns="http://www.sbml.org/sbml/level3/version2/core" level="3" version="2">
+  <model/>
+</sbml>
+"#;
+
+/// Checks a model written in Antimony (loaded or pasted on the web page).
+/// The text is the master copy: it is converted to SBML and checked, with
+/// findings placed on the text's own lines, and all of Antimony's errors
+/// and warnings reported (AN001, AN002).
+pub fn check_antimony(text: &str) -> Report {
+    let Some(xml) = antimony_sbml(text) else {
+        return check_edit(EMPTY_SBML, text);
+    };
+    let mut report = check_edit(&xml, text);
+    // `check_edit` keeps only the warnings an edit adds; here the whole
+    // text is the user's, so all its warnings count.
+    let ours: HashSet<String> = report
+        .findings
+        .iter()
+        .filter(|f| f.code == AN_WARNING)
+        .map(|f| f.message.clone())
+        .collect();
+    for d in &antimony::parse(text).diagnostics {
+        if d.severity == AntSeverity::Warning && !ours.contains(&d.message) {
+            let line = (!d.span.is_unknown()).then_some(d.span.start.line as usize);
+            report.findings.push(finding(
+                AN_WARNING,
+                Severity::Warning,
+                d.message.clone(),
+                line,
+            ));
+        }
+    }
+    crate::sort(&mut report.findings);
+    report
+}
+
 /// Where each element is written in the text, keyed by the original
 /// model's kinds and ids.
 fn lines(m: &antimony::model::Module, map: &Mapping) -> Vec<(&'static str, String, usize)> {
@@ -431,5 +477,30 @@ mod tests {
                 .iter()
                 .any(|f| f.code == AN_ERROR && f.line == Some(line))
         );
+    }
+
+    const ANT: &str = "k := 1/0;\n\nA -> B; k1*A\nB -> C; k2*B/k\nk1 = 0.35; k2 = 0.2\nA = 10\n";
+
+    #[test]
+    fn antimony_text_is_checked_on_its_own_lines() {
+        let r = check_antimony(ANT);
+        let f = r
+            .findings
+            .iter()
+            .find(|f| f.code == crate::codes::RL_SINGULAR_INITIAL)
+            .expect("the division by zero is found");
+        let ant = r.antimony.as_ref().unwrap();
+        assert_eq!(ant.text, ANT);
+        assert_eq!(ant.line_of(f.element.kind(), &f.element.id()), Some(1));
+        // Antimony's own warnings on the text are kept (B and C have no value).
+        assert!(r.findings.iter().any(|f| f.code == AN_WARNING));
+        assert!(antimony_sbml(ANT).is_some());
+    }
+
+    #[test]
+    fn antimony_text_with_errors_reports_them() {
+        let r = check_antimony("A -> B; k1*\n");
+        assert!(r.findings.iter().any(|f| f.code == AN_ERROR));
+        assert!(antimony_sbml("A -> B; k1*\n").is_none());
     }
 }

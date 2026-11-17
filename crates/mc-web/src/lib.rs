@@ -24,6 +24,19 @@ pub fn edited_sbml(original_xml: &str, edited: &str) -> String {
     mc_core::from_antimony::edited_sbml(original_xml, edited).unwrap_or_default()
 }
 
+/// Checks a model written in Antimony; returns the report as JSON. The
+/// text is the master copy, so findings refer to its own lines.
+#[wasm_bindgen]
+pub fn check_antimony(text: &str) -> String {
+    mc_core::json::report(&mc_core::from_antimony::check_antimony(text))
+}
+
+/// An Antimony model as SBML; an empty string if the text has errors.
+#[wasm_bindgen]
+pub fn antimony_sbml(text: &str) -> String {
+    mc_core::from_antimony::antimony_sbml(text).unwrap_or_default()
+}
+
 /// Every finding code with its title and explanation, as JSON.
 #[wasm_bindgen]
 pub fn finding_codes() -> String {

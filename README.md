@@ -14,7 +14,9 @@ finding, with a concrete witness where one exists.
 **Try it: https://sys-bio.github.io/ModelChecker/**
 
 It runs in the browser (Rust compiled to WebAssembly): the model never leaves
-your computer. There is also a command-line tool for checking whole folders.
+your computer. The page takes SBML files, Antimony files (`.ant`, `.txt`), or
+Antimony pasted with **Paste Antimony**. An Antimony model is converted to
+SBML for checking, and the findings point at your own lines. There is also a command-line tool for checking whole folders.
 
 ## What is checked
 
