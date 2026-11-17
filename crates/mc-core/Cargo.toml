@@ -22,3 +22,7 @@ antimony-rs = { workspace = true, features = ["sbml"] }
 [[example]]
 name = "edit_roundtrip"
 required-features = ["antimony"]
+
+[[example]]
+name = "report_pdf"
+required-features = ["antimony"]

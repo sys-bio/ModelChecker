@@ -37,6 +37,48 @@ pub fn antimony_sbml(text: &str) -> String {
     mc_core::from_antimony::antimony_sbml(text).unwrap_or_default()
 }
 
+/// The report of a check as a PDF file. `kind` says what was checked, as
+/// for the functions above: "sbml" (`xml`), "edit" (`xml` with the edited
+/// `text`) or "antimony" (`text`). `date` is when, as the reader should
+/// see it.
+#[wasm_bindgen]
+pub fn report_pdf(kind: &str, xml: &str, text: &str, file_name: &str, date: &str) -> Vec<u8> {
+    use mc_core::from_antimony;
+    let report = match kind {
+        "antimony" => from_antimony::check_antimony(text),
+        "edit" => from_antimony::check_edit(xml, text),
+        _ => mc_core::check(xml),
+    };
+    let sbml = match (report.level, report.version) {
+        (Some(l), Some(v)) => format!("SBML Level {l} Version {v}"),
+        _ => "SBML".to_string(),
+    };
+    let source = match kind {
+        "antimony" => "Antimony".to_string(),
+        "edit" => format!("{sbml}, edited in the Antimony panel"),
+        _ => sbml,
+    };
+    let commit = env!("MC_BUILD_COMMIT");
+    let checker = format!(
+        "Model Checker {}{}, https://sys-bio.github.io/ModelChecker/",
+        env!("CARGO_PKG_VERSION"),
+        if commit.len() >= 7 {
+            format!(" (build {})", &commit[..7])
+        } else {
+            String::new()
+        }
+    );
+    mc_core::pdf::report(
+        &report,
+        &mc_core::pdf::Meta {
+            file_name,
+            source: &source,
+            date,
+            checker: &checker,
+        },
+    )
+}
+
 /// Every finding code with its title and explanation, as JSON.
 #[wasm_bindgen]
 pub fn finding_codes() -> String {

@@ -16,7 +16,9 @@ finding, with a concrete witness where one exists.
 It runs in the browser (Rust compiled to WebAssembly): the model never leaves
 your computer. The page takes SBML files, Antimony files (`.ant`, `.txt`), or
 Antimony pasted with **Paste Antimony**. An Antimony model is converted to
-SBML for checking, and the findings point at your own lines. There is also a command-line tool for checking whole folders.
+SBML for checking, and the findings point at your own lines.
+**Save report as PDF** downloads a report of every finding, with the model
+and its line numbers. There is also a command-line tool for checking whole folders.
 
 ## What is checked
 
@@ -239,6 +241,7 @@ cargo test -p mc-core                      # unit and model tests
 cargo run --release -p mc-cli -- model.xml # check one model
 cargo run --release -p mc-cli -- --summary folder/   # counts over a corpus
 cargo run -p mc-core --example ant2sbml -- model.ant > model.xml
+cargo run -p mc-core --features antimony --example report_pdf -- model.xml > report.pdf
 ```
 
 The web page:

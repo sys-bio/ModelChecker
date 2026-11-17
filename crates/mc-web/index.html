@@ -292,6 +292,7 @@ footer a { color: var(--accent); }
       <span class="spacer"></span>
       <select id="code-filter" aria-label="Filter by check"><option value="">All checks</option></select>
       <input type="search" id="text-filter" placeholder="Filter by id or text" aria-label="Filter by text">
+      <button id="pdf" title="Download a report of every finding, with the model, as a PDF">Save report as PDF</button>
       <button id="save">Save JSON</button>
     </div>
     <div class="results-grid">
@@ -379,6 +380,11 @@ footer a { color: var(--accent); }
   // Whether the model was loaded as Antimony. Then the text, not an SBML
   // file, is the master copy: every check converts the text afresh.
   let fromAntimony = false;
+  // What the current report is a check of, to make its PDF report from:
+  // { kind: "sbml" | "edit" | "antimony", xml, text }. And the same for
+  // the model as loaded, to revert to.
+  let checked = null;
+  let originalChecked = null;
 
   const $ = (id) => document.getElementById(id);
   const status = (text, bad) => {
@@ -441,6 +447,9 @@ footer a { color: var(--accent); }
         ? `${name} has ${errors} Antimony error${errors > 1 ? "s" : ""}: fix ${errors > 1 ? "them" : "it"} in the panel and re-check.`
         : "Checked " + name + " in " + ms + " ms.", errors > 0);
       fromAntimony = ant;
+      checked = originalChecked = ant
+        ? { kind: "antimony", xml: "", text }
+        : { kind: "sbml", xml: text, text: "" };
       original = report;
       originalXml = ant ? "" : text;
       edited = false;
@@ -501,6 +510,9 @@ footer a { color: var(--accent); }
       return;
     }
     const ms = Math.round(performance.now() - t0);
+    checked = fromAntimony
+      ? { kind: "antimony", xml: "", text }
+      : { kind: "edit", xml: originalXml, text };
     edited = true;
     dirty = false;
     const errors = report.findings.filter((f) => f.code === "AN001").length;
@@ -512,6 +524,7 @@ footer a { color: var(--accent); }
 
   function revert() {
     report = original;
+    checked = originalChecked;
     edited = false;
     dirty = false;
     $("ant-edit").value = report.antimony || "";
@@ -725,6 +738,26 @@ footer a { color: var(--accent); }
   document.querySelectorAll("[data-sev]").forEach((c) => c.onchange = render);
   $("code-filter").onchange = render;
   $("text-filter").oninput = render;
+  $("pdf").onclick = () => {
+    if (!api || !checked) return;
+    const now = new Date();
+    const months = ["January", "February", "March", "April", "May", "June", "July",
+      "August", "September", "October", "November", "December"];
+    const pad = (n) => String(n).padStart(2, "0");
+    const date = `${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}, ` +
+      `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    let pdf;
+    try {
+      pdf = api.report_pdf(checked.kind, checked.xml, checked.text, fileName, date);
+    } catch (e) {
+      status("Could not make the PDF report: " + e, true);
+      return;
+    }
+    download(pdf, stem() + (edited ? "-edited" : "") + "-report.pdf", "application/pdf");
+    status(dirty
+      ? "Saved the report of the last check. Your newer edits are not in it: press Re-check first to include them."
+      : "Saved the report as a PDF.");
+  };
   $("save").onclick = () => {
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
