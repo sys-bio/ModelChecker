@@ -385,6 +385,11 @@ footer a { color: var(--accent); }
   // the model as loaded, to revert to.
   let checked = null;
   let originalChecked = null;
+  // The panel's text as it is kept outside the page: the file as loaded
+  // (null when pasted), and the last .ant or SBML downloaded. Leaving the
+  // page with any other text asks first.
+  let loadedText = null;
+  let savedText = null;
 
   const $ = (id) => document.getElementById(id);
   const status = (text, bad) => {
@@ -428,7 +433,7 @@ footer a { color: var(--accent); }
   // drops a byte-order mark.)
   const isAntimony = (text) => !text.trimStart().startsWith("<");
 
-  function run(text, name) {
+  function run(text, name, pasted) {
     fileName = name;
     const ant = isAntimony(text);
     status("Checking " + name + "...");
@@ -457,6 +462,8 @@ footer a { color: var(--accent); }
       // Antimony keeps the text exactly as loaded.
       if (ant) $("ant-edit").value = text;
       show();
+      loadedText = pasted ? null : $("ant-edit").value;
+      savedText = null;
     }, 10);
   }
 
@@ -608,8 +615,10 @@ footer a { color: var(--accent); }
       () => status("Antimony copied to the clipboard."),
       () => status("Could not copy to the clipboard.", true));
   };
-  $("ant-save").onclick = () =>
+  $("ant-save").onclick = () => {
     download($("ant-edit").value, stem() + (edited || dirty ? "-edited" : "") + ".ant", "text/plain");
+    savedText = $("ant-edit").value;
+  };
   $("ant-sbml").onclick = () => {
     const text = $("ant-edit").value;
     const xml = fromAntimony ? api.antimony_sbml(text) : api.edited_sbml(originalXml, text);
@@ -618,6 +627,7 @@ footer a { color: var(--accent); }
       return;
     }
     download(xml, stem() + (edited ? "-edited" : "") + ".xml", "application/xml");
+    savedText = text;
   };
   $("ant-recheck").onclick = recheck;
   $("ant-revert").onclick = revert;
@@ -713,7 +723,7 @@ footer a { color: var(--accent); }
       status("Nothing was pasted.", true);
       return;
     }
-    run(text, "pasted.ant");
+    run(text, "pasted.ant", true);
   });
   $("paste-text").addEventListener("keydown", (e) => {
     if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
@@ -758,6 +768,20 @@ footer a { color: var(--accent); }
       ? "Saved the report of the last check. Your newer edits are not in it: press Re-check first to include them."
       : "Saved the report as a PDF.");
   };
+  // Ask before leaving (refresh, close, navigate away) when work would be
+  // lost: edits or a pasted model not downloaded, or text in the paste box.
+  // Browsers show their own wording.
+  function unsaved() {
+    if ($("paste-dlg").open && $("paste-text").value.trim()) return true;
+    const text = $("ant-edit").value;
+    return report !== null && text !== loadedText && text !== savedText;
+  }
+  addEventListener("beforeunload", (e) => {
+    if (!unsaved()) return;
+    e.preventDefault();
+    e.returnValue = "";
+  });
+
   $("save").onclick = () => {
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
