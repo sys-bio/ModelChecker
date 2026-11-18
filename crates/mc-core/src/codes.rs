@@ -89,6 +89,7 @@ pub const NW_DISCONNECTED: &str = "NW004";
 pub const NW_CONSERVED: &str = "NW005";
 pub const NW_NEVER_PRESENT: &str = "NW006";
 pub const NW_NO_EFFECT: &str = "NW007";
+pub const NW_COFACTOR: &str = "NW008";
 
 pub const TD_HALDANE: &str = "TD001";
 pub const TD_WEGSCHEIDER: &str = "TD002";
@@ -321,6 +322,16 @@ pub const ALL: &[Code] = &[
         title: "Reaction changes nothing",
         help: "The reaction changes no variable species: all its species are boundary or \
                constant, or appear equally on both sides. It only carries a flux.",
+    },
+    Code {
+        code: NW_COFACTOR,
+        title: "Cofactor without its partner",
+        help: "The reaction uses up one form of a common cofactor (ATP, GTP, NAD+, NADP+, FAD, \
+               glutathione, CoA) but makes no other form, or makes one without using one up: \
+               Glucose + ATP -> G6P has lost its ADP. A warning when the other side has a \
+               placeholder such as X, which is named as the likely missing form; information \
+               otherwise, since a partner is sometimes left out on purpose. Cofactors are \
+               recognised by name.",
     },
     Code {
         code: TD_HALDANE,

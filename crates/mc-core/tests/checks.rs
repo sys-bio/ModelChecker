@@ -1104,3 +1104,51 @@ fn comp_package() {
         .unwrap_or_else(|| panic!("{}", show(&r)));
     assert_eq!(f.severity, Severity::Warning);
 }
+
+fn cofactor(r: &Report) -> Vec<&mc_core::Finding> {
+    r.findings
+        .iter()
+        .filter(|f| f.code == NW_COFACTOR)
+        .collect()
+}
+
+#[test]
+fn cofactor_placeholder_is_named() {
+    let r = run("J1: Glucose + ATP -> G6P + X; k*Glucose*ATP\n\
+                 Glucose = 1; ATP = 1; G6P = 0; X = 0; k = 1");
+    let f = cofactor(&r);
+    assert_eq!(f.len(), 1, "{}", show(&r));
+    assert_eq!(f[0].severity, Severity::Warning);
+    assert!(f[0].message.contains("`X`") && f[0].message.contains("ADP"));
+}
+
+#[test]
+fn cofactor_without_placeholder_is_information() {
+    let r = run("J1: Glucose + ATP -> G6P; k*Glucose*ATP\nGlucose = 1; ATP = 1; G6P = 0; k = 1");
+    let f = cofactor(&r);
+    assert_eq!(f.len(), 1, "{}", show(&r));
+    assert_eq!(f[0].severity, Severity::Info);
+    // Made without being used up: ADP produced, no ATP consumed.
+    let r = run(
+        "J1: Glucose + Y -> G6P + ADP; k*Glucose*Y\nGlucose = 1; Y = 1; G6P = 0; ADP = 0; k = 1",
+    );
+    let f = cofactor(&r);
+    assert_eq!(f.len(), 1, "{}", show(&r));
+    assert!(f[0].message.contains("`Y`") && f[0].message.contains("ATP"));
+}
+
+#[test]
+fn balanced_cofactors_are_clean() {
+    for ant in [
+        "J1: Glucose + ATP -> G6P + ADP; k*Glucose*ATP",
+        "J1: PEP + ADP -> Pyr + ATP; k*PEP*ADP",
+        "J1: Pyr + NADH -> Lac + NAD; k*Pyr*NADH",
+        "J1: AcCoA + OAA -> Cit + CoA; k*AcCoA*OAA",
+        "J1: Glc + ATP_c -> G6P + ADP_c; k*Glc*ATP_c",
+        "J1: ATP -> ; k*ATP",
+        "J1: S + ATP -> P + ADP; k*S*ATP",
+    ] {
+        let r = run(ant);
+        assert_not!(r, NW_COFACTOR);
+    }
+}

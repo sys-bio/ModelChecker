@@ -1,6 +1,7 @@
 //! The checks, one module per family.
 
 mod annotations;
+mod cofactors;
 mod features;
 mod mass_action;
 mod network;
@@ -82,6 +83,7 @@ pub fn run(model: &Model, level: u32, namespaces: &[(Option<String>, String)]) -
     mass_action::check(&mut ctx);
     thermo::check(&mut ctx);
     network::check(&mut ctx);
+    cofactors::check(&mut ctx);
     rules::check(&mut ctx);
     values::check(&mut ctx);
     units::check(&mut ctx);

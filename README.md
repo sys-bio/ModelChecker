@@ -53,6 +53,7 @@ and its line numbers. There is also a command-line tool for checking whole folde
 | NW005 | info     | Conserved totals (conservation laws), e.g. `MKKK + MKKK_P = 100` |
 | NW006 | warning  | Species that start at zero and can never be made (an empty siphon), and the reactions that therefore never run |
 | NW007 | info     | Reaction that changes no variable species (only carries a flux) |
+| NW008 | warning/info | Cofactor without its partner: `Glucose + ATP -> G6P + X` uses up ATP but makes no ADP (warning, asking whether `X` is ADP); info when there is no placeholder to name |
 | TD001 | warning  | Reversible rate law whose equilibrium is not a constant mass-action ratio (Haldane), e.g. shifted by a modifier |
 | TD002 | warning  | Cycle of reversible reactions whose equilibrium constants do not multiply to 1 (Wegscheider) |
 | UN001 | warning  | Rate law units differ from extent per time |
@@ -222,6 +223,12 @@ and its line numbers. There is also a command-line tool for checking whole folde
   (`cargo run --release -p mc-core --example ant_roundtrip -- FOLDER`).
 - **Conservation.** A witness that empties a whole conserved moiety (found
   from the stoichiometry matrix) is not a reachable state, so it is not used.
+
+## Possible future features
+
+- [Matching reactions to Rhea](docs/future-rhea-matching.md): identify
+  reactions in the Rhea database to fill in missing species, spot wrong
+  ones, and add reaction links.
 
 ## Layout
 
